@@ -39,6 +39,7 @@ img { max-width: 100%; }
   --err: #C0262D;
   --honey-bg: #FFF3D4;
   --honey-fg: #7A4A00;
+  --shadow: rgba(23, 34, 43, 0.16);
   --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -48,7 +49,7 @@ img { max-width: 100%; }
     --head: #1E2830; --field: #1C252C; --field-focus: #222D35; --accent: #73B6D4; --accent-ink: #0A1A22;
     --wk1: #20311A; --wk1-ink: #A8D698; --wk2: #142E3D; --wk2-ink: #8ECBEA; --sat: #6FB4F2; --sun: #FF7B7B;
     --bad-bg: #4A1C22; --bad-fg: #FFB4BD; --good-bg: #17391F; --good-fg: #A5E2B3; --err: #FF8A8F;
-    --honey-bg: #3B2E10; --honey-fg: #F2C462;
+    --honey-bg: #3B2E10; --honey-fg: #F2C462; --shadow: rgba(0, 0, 0, 0.5);
     color-scheme: dark;
   }
 }
@@ -57,7 +58,7 @@ img { max-width: 100%; }
   --head: #1E2830; --field: #1C252C; --field-focus: #222D35; --accent: #73B6D4; --accent-ink: #0A1A22;
   --wk1: #20311A; --wk1-ink: #A8D698; --wk2: #142E3D; --wk2-ink: #8ECBEA; --sat: #6FB4F2; --sun: #FF7B7B;
   --bad-bg: #4A1C22; --bad-fg: #FFB4BD; --good-bg: #17391F; --good-fg: #A5E2B3; --err: #FF8A8F;
-  --honey-bg: #3B2E10; --honey-fg: #F2C462;
+  --honey-bg: #3B2E10; --honey-fg: #F2C462; --shadow: rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 
@@ -72,7 +73,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 .page {
-  max-width: 1240px;
+  max-width: 1280px;
   margin: 0 auto;
   padding-block: 28px 48px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -197,6 +198,34 @@ table.sheet {
   background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 3px 7px; cursor: pointer;
 }
 .row-reset:hover { color: var(--ink); border-color: var(--muted); }
+.combo { position: relative; }
+.sheet .combo input.time { padding-right: 22px; }
+.combo-toggle {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 22px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); background: transparent; border: 0; cursor: pointer;
+}
+.combo-toggle svg { width: 10px; height: 6px; }
+.combo-toggle:hover { color: var(--accent); }
+.time-picker {
+  position: fixed; z-index: 30; display: grid; gap: 6px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px var(--shadow);
+}
+.picker-cols { display: grid; grid-template-columns: repeat(3, 64px); gap: 4px; }
+.picker-col { display: grid; gap: 4px; min-width: 0; }
+.picker-head { font-size: 0.72rem; font-weight: 600; color: var(--muted); text-align: center; }
+.picker-col ul {
+  position: relative; margin: 0; padding: 2px; list-style: none; height: 200px; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--field); border-radius: 6px;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 0.9rem;
+}
+.picker-col ul.focused { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.picker-col li { display: flex; align-items: baseline; justify-content: center; gap: 4px; padding: 5px 0; border-radius: 5px; cursor: pointer; }
+.picker-col li small { font-family: var(--font-ui); font-size: 0.65rem; color: var(--muted); }
+.picker-col li:hover { background: var(--line-soft); }
+.picker-col li.active { background: var(--accent); color: var(--accent-ink); }
+.picker-col li.active small { color: inherit; }
+.picker-done { justify-self: end; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .issues { margin: -8px 0 0; padding-left: 1.1em; display: grid; gap: 2px; color: var(--err); font-size: 0.85rem; }
 .sheet .err { color: var(--err); font-weight: 600; }
@@ -238,6 +267,11 @@ table.sheet {
   .sheet .day-suffix { display: inline; }
   .sheet .k-reset { grid-area: reset; justify-self: end; align-self: center; }
   .sheet .k-reset .row-actions { justify-content: flex-end; }
+  .sheet td.in .combo input.time { padding-right: 34px; }
+  .combo-toggle { width: 34px; }
+  .combo-toggle svg { width: 12px; height: 7px; }
+  .picker-cols { grid-template-columns: repeat(3, 72px); }
+  .picker-col li { padding: 9px 0; }
   .sheet .k-start { grid-area: start; }
   .sheet .k-end { grid-area: end; }
   .sheet .k-honey { grid-area: honey; }
@@ -381,13 +415,21 @@ table.sheet {
     <table class="sheet" id="sheet"></table>
   </div>
   <ul class="issues" id="issues" role="status" hidden></ul>
+  <div class="time-picker" id="timePicker" role="dialog" aria-label="시간 선택" hidden>
+    <div class="picker-cols">
+      <div class="picker-col"><span class="picker-head">시</span><ul role="listbox" aria-label="시" data-part="h"></ul></div>
+      <div class="picker-col"><span class="picker-head">분</span><ul role="listbox" aria-label="분" data-part="m"></ul></div>
+      <div class="picker-col"><span class="picker-head">초</span><ul role="listbox" aria-label="초" data-part="s"></ul></div>
+    </div>
+    <button type="button" class="btn picker-done">확인</button>
+  </div>
 
   <section class="guide">
     <h2>입력 안내</h2>
     <ul>
-      <li><b>근태</b>: 연차 / 반차 / 반반차 / 휴일 사용 시 선택하세요. 공휴일·휴무도 휴일로 선택합니다. 휴일·연차를 고르면 기본 출퇴근 시간(9:00~18:00)은 비워지며, 휴일에 근무했다면 출퇴근 시간을 입력하세요</li>
-      <li><b>출근 시간</b>: "hh:mm:ss" 형식으로 입력하세요. 6:00:00부터 출근할 수 있습니다</li>
-      <li><b>퇴근 시간</b>: "hh:mm:ss" 형식으로 입력하세요. 출근보다 이른 시각은 다음 날로 계산하며, 다음 날 5:59:59까지 퇴근할 수 있습니다</li>
+      <li><b>근태</b>: 연차 / 반차 / 반반차 / 휴일 사용 시 선택하세요. 공휴일·휴무도 휴일로 선택합니다. 연차는 근무한 날로 보아 필수 시간은 그대로 두고 확정 근무 8:00으로 계산하며, 휴일은 필수·누적 시간에서 모두 뺍니다. 반차·반반차는 그날 필수 시간을 4시간·6시간으로 줌입니다. 휴일·연차를 고르면 기본 출퇴근 시간(9:00~18:00)은 비워지며, 휴일에 근무했다면 출퇴근 시간을 입력하세요</li>
+      <li><b>출근 시간</b>: "hh:mm:ss" 형식으로 직접 입력하거나 ▾ 버튼으로 시·분·초를 하나씩 고르세요. 6:00:00부터 출근할 수 있습니다</li>
+      <li><b>퇴근 시간</b>: "hh:mm:ss" 형식으로 직접 입력하거나 ▾ 버튼으로 시·분·초를 고르세요. 출근보다 이른 시각은 다음 날로 계산하며, 다음 날 5:59:59까지 퇴근할 수 있습니다</li>
       <li><b>꿀근무 퇴근</b>: 출근 시간 + 8시간 29분입니다. 체류 8시간 30분부터 휴게 30분이 한 번 더 빠지므로, 이 시각까지 퇴근하면 휴게는 30분만 빠집니다</li>
       <li><b>퇴근 가능</b>: 출근 시간 + 4시간 30분(4시간 근무 + 휴게 30분)입니다. 연차·휴일·주말에는 표시하지 않습니다</li>
       <li><b>비업무 시간</b>: 숫자로 분을 1분 단위로 입력하세요</li>
@@ -395,6 +437,7 @@ table.sheet {
       <li><b>잔특근 신청 시간</b>: 숫자로 분을 10분 단위로 입력하세요</li>
       <li><b>1주차 기준일</b>: 선택 사항입니다. 날짜를 고르면 그 주 월요일부터 1주차로 보고 요일 옆에 날짜를 보여 줍니다. 비우면 요일만 보입니다</li>
       <li><b>초기화 / 비우기</b>: 줄 끝의 「초기화」는 그 요일을 기본값(평일 9:00~18:00, 주말 빈칸)으로 되돌리고, 「비우기」는 그 요일의 입력을 모두 지웁니다. 「전체 초기화」·「전체 비우기」는 표 전체에 같은 동작을 합니다</li>
+      <li><b>키보드</b>: Tab은 직접 입력 칸(출퇴근 시간, 비업무, 잔특근 신청) 사이만 이동합니다. Enter·↑·↓는 같은 열의 위아래 칸으로, 시간 칸에서 Alt+↓는 시·분·초 선택 창을 엽니다(←→ 칸 이동, ↑↓ 값 변경, Enter 닫기)</li>
     </ul>
     <p class="source">계산 규칙은 <code>근무시간_계산기_v3.0.xlsm</code>의 VBA 함수를 그대로 옮기고, 휴일·식사 차감·꿀근무·근무 가능 시간을 더했습니다. <span id="storageNote">입력값은 이 브라우저에만 저장됩니다.</span></p>
   </section>
@@ -679,6 +722,10 @@ function honeyLeaveTime(day, holiday, vacation, start) {
 // (추가) 조식·석식은 한 끼에 30분씩 근무 시간에서 뺀다.
 const MEAL_MINUTES = 30;
 
+// (추가) 연차는 근무한 날로 본다: 필수 시간에서 빼지 않고, 그날 확정 근무를 8시간으로 넣는다.
+// (휴일은 원본처럼 필수·누적에서 모두 빠진다.)
+const PAID_LEAVE_MINUTES = 8 * 60;
+
 // (추가) 퇴근 가능: 출근 + 4시간 30분(4시간 근무 + 휴게 30분). 평일·반차·반반차만 해당하고
 // 연차·휴일·주말은 제외한다. 반환값은 출근일 0시부터의 초. 다음 날 5:59:59를 넘으면 null.
 const MIN_STAY_SECONDS = (4 * 60 + 30) * 60;
@@ -698,7 +745,10 @@ function computeSheet(rows) {
   const starts = rows.map((r, i) => (windowIssues[i].start ? VALUE_ERR : r.start));
   const ends = rows.map((r, i) => (windowIssues[i].end ? VALUE_ERR : r.end));
   const meals = rows.map((r) => MEAL_MINUTES * ((r.breakfast ? 1 : 0) + (r.dinner ? 1 : 0)));
-  const work = rows.map((r, i) => calculateWorkTime(r.day, holidays[i], starts[i], ends[i], r.sys, r.personal, meals[i]));
+  const paidLeave = rows.map((r, i) => r.vacation === '연차' && WEEKDAYS.includes(r.day) && String(holidays[i] ?? '').toUpperCase() !== 'O');
+  const work = rows.map((r, i) => (paidLeave[i]
+    ? hhmm(PAID_LEAVE_MINUTES)
+    : calculateWorkTime(r.day, holidays[i], starts[i], ends[i], r.sys, r.personal, meals[i])));
   const overtime = rows.map((r, i) => calculateOvertime(r.day, holidays[i], r.requested, work[i]));
   const honey = rows.map((r, i) => honeyLeaveTime(r.day, holidays[i], r.vacation, starts[i]));
   const leave = rows.map((r, i) => earliestLeaveTime(r.day, holidays[i], r.vacation, starts[i]));
@@ -709,7 +759,8 @@ function computeSheet(rows) {
     overtime: sumOvertimeMin(overtime),
     overtimeText: sumWorkTime(overtimeText),
   };
-  const required = calculateRequiredWorkTime(rows.map((r) => r.day), holidays, rows.map((r) => r.vacation));
+  // 원본은 연차를 필수 0시간으로 보지만, 연차는 근무로 보므로 일반 평일(8시간)로 넘긴다.
+  const required = calculateRequiredWorkTime(rows.map((r) => r.day), holidays, rows.map((r) => (r.vacation === '연차' ? null : r.vacation)));
   const accumulated = subtractTime(totals.work, totals.overtime);
   const shortfall = subtractTime(required, accumulated);
   return {
@@ -884,10 +935,12 @@ function rowLabel(i) {
 }
 
 // 열 너비(px): 요일부터 초기화까지. 2주 단위는 맨 앞에 구간 열이 붙는다.
-const COL_WIDTHS = [56, 84, 96, 96, 200, 64, 64, 48, 48, 76, 84, 56, 64, 104];
+const COL_WIDTHS = [56, 84, 112, 112, 200, 64, 64, 48, 48, 76, 84, 56, 64, 104];
 const WEEK_COL_WIDTH = 56;
+const CHEVRON = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 function renderTable() {
+  closeCombo();
   const cfg = SHEETS[state.sheet];
   const widths = cfg.weeks ? [WEEK_COL_WIDTH, ...COL_WIDTHS] : COL_WIDTHS;
   table.style.setProperty('--table-min', `${widths.reduce((a, b) => a + b, 0)}px`);
@@ -922,21 +975,21 @@ function renderTable() {
       + `<span class="day-name">${day}<span class="day-suffix">요일</span></span>`
       + (dates ? `<small class="day-date">${monthDay(dates[i])}</small>` : '')
       + '</th>'
-      + `<td class="in k-att" data-label="근태"><select id="${fieldId(i, 'vacation')}" data-f="vacation" aria-label="${label} 근태"><option value=""></option><option>연차</option><option>반차</option><option>반반차</option><option>휴일</option></select></td>`
-      + `<td class="in k-start" data-label="출근"><input class="time" id="${fieldId(i, 'start')}" data-f="start" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 출근 시간"></td>`
-      + `<td class="in k-end" data-label="퇴근"><input class="time" id="${fieldId(i, 'end')}" data-f="end" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 퇴근 시간"></td>`
+      + `<td class="in k-att" data-label="근태"><select id="${fieldId(i, 'vacation')}" data-f="vacation" tabindex="-1" aria-label="${label} 근태"><option value=""></option><option>연차</option><option>반차</option><option>반반차</option><option>휴일</option></select></td>`
+      + `<td class="in k-start" data-label="출근"><div class="combo"><input class="time" id="${fieldId(i, 'start')}" data-f="start" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" role="combobox" aria-haspopup="dialog" aria-expanded="false" aria-controls="timePicker" aria-label="${label} 출근 시간"><button type="button" class="combo-toggle" tabindex="-1" aria-label="${label} 출근 시간 선택">${CHEVRON}</button></div></td>`
+      + `<td class="in k-end" data-label="퇴근"><div class="combo"><input class="time" id="${fieldId(i, 'end')}" data-f="end" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" role="combobox" aria-haspopup="dialog" aria-expanded="false" aria-controls="timePicker" aria-label="${label} 퇴근 시간"><button type="button" class="combo-toggle" tabindex="-1" aria-label="${label} 퇴근 시간 선택">${CHEVRON}</button></div></td>`
       + '<td class="honey k-honey" data-label="꿀근무 / 퇴근 가능" data-o="honey" title="왼쪽: 꿀근무 퇴근(출근 + 8시간 29분) / 오른쪽: 퇴근 가능(출근 + 4시간 30분)"></td>'
       + `<td class="in k-sys" data-label="비업무 시스템(분)"><input class="num" id="${fieldId(i, 'sys')}" data-f="sys" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 시스템(분)"></td>`
       + `<td class="in k-per" data-label="비업무 개인(분)"><input class="num" id="${fieldId(i, 'personal')}" data-f="personal" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 개인(분)"></td>`
-      + `<td class="in check k-bf" data-label="조식 −30분"><input type="checkbox" id="${fieldId(i, 'breakfast')}" data-f="breakfast" aria-label="${label} 조식"></td>`
-      + `<td class="in check k-dn" data-label="석식 −30분"><input type="checkbox" id="${fieldId(i, 'dinner')}" data-f="dinner" aria-label="${label} 석식"></td>`
+      + `<td class="in check k-bf" data-label="조식 −30분"><input type="checkbox" id="${fieldId(i, 'breakfast')}" data-f="breakfast" tabindex="-1" aria-label="${label} 조식"></td>`
+      + `<td class="in check k-dn" data-label="석식 −30분"><input type="checkbox" id="${fieldId(i, 'dinner')}" data-f="dinner" tabindex="-1" aria-label="${label} 석식"></td>`
       + `<td class="in k-req" data-label="잔특근 신청(분)"><input class="num" id="${fieldId(i, 'requested')}" data-f="requested" inputmode="numeric" autocomplete="off" aria-label="${label} 잔특근 신청 시간(분)"></td>`
       + '<td class="out k-work" data-label="확정 근무" data-o="work"></td>'
       + '<td class="out k-ot" data-label="인정(분)" data-o="overtime"></td>'
       + '<td class="out k-ott" data-label="인정 시간" data-o="overtimeText"></td>'
       + '<td class="k-reset"><div class="row-actions">'
-      + `<button type="button" class="row-reset" aria-label="${label} 초기화">초기화</button>`
-      + `<button type="button" class="row-reset row-clear" aria-label="${label} 비우기">비우기</button>`
+      + `<button type="button" class="row-reset" tabindex="-1" aria-label="${label} 초기화">초기화</button>`
+      + `<button type="button" class="row-reset row-clear" tabindex="-1" aria-label="${label} 비우기">비우기</button>`
       + '</div></td>'
       + '</tr>';
   });
@@ -1104,6 +1157,7 @@ table.addEventListener('focusout', (e) => {
 table.addEventListener('keydown', (e) => {
   const el = e.target;
   if (el.tagName !== 'INPUT' || el.type === 'checkbox' || e.isComposing) return;
+  if (handleComboKey(e)) return;
   const step = e.key === 'Enter' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
   if (!step) return;
   const next = $(fieldId(Number(el.closest('tr').dataset.row) + step, el.dataset.f));
@@ -1188,6 +1242,161 @@ table.addEventListener('click', (e) => {
   recalc();
   updateChrome();
 });
+
+// ==== 시간 콤보박스 ====
+// 출퇴근 시간은 직접 입력하거나, ▾ 버튼(또는 Alt+↓)으로 시·분·초를 1단위로 고른다.
+// 모든 시간 칸이 선택 창 하나(#timePicker)를 함께 쓴다. 고를 때마다 입력칸에 바로 반영한다.
+const DAY_START_HOUR = 6;
+const PARTS = ['h', 'm', 's'];
+const picker = $('timePicker');
+const combo = { input: null, refocus: false, part: 0, value: { h: 9, m: 0, s: 0 } };
+let lastPointerType = 'mouse';
+document.addEventListener('pointerdown', (e) => { lastPointerType = e.pointerType; }, true);
+
+const SIXTY = Array.from({ length: 60 }, (_, k) => k);
+// 시: 출근은 6~23시, 퇴근은 6시부터 다음 날 5시까지(근무 가능 시간 순서). 분·초: 0~59
+function partOptions(part) {
+  if (part !== 'h') return SIXTY;
+  const count = combo.input.dataset.f === 'start' ? 24 - DAY_START_HOUR : 24;
+  return Array.from({ length: count }, (_, k) => (DAY_START_HOUR + k) % 24);
+}
+const pickerList = (part) => picker.querySelector(`ul[data-part="${part}"]`);
+
+function renderPicker() {
+  for (const part of PARTS) {
+    pickerList(part).replaceChildren(...partOptions(part).map((n) => {
+      const li = Object.assign(document.createElement('li'), { textContent: pad2(n) });
+      li.setAttribute('role', 'option');
+      li.dataset.value = String(n);
+      if (part === 'h' && n < DAY_START_HOUR) li.append(Object.assign(document.createElement('small'), { textContent: '익일' }));
+      return li;
+    }));
+  }
+}
+// 고른 값을 강조하고, scroll이면 각 칸에서 고른 값이 가운데 오게 한다.
+function syncPicker(scroll) {
+  PARTS.forEach((part, idx) => {
+    const list = pickerList(part);
+    list.classList.toggle('focused', idx === combo.part);
+    for (const li of list.children) {
+      const on = Number(li.dataset.value) === combo.value[part];
+      li.classList.toggle('active', on);
+      li.setAttribute('aria-selected', String(on));
+      if (on && scroll) list.scrollTop = li.offsetTop - list.clientHeight / 2 + li.offsetHeight / 2;
+    }
+  });
+}
+function readInput(input) {
+  const t = parseTimeText(input.value);
+  if (t === null) return { h: input.dataset.f === 'start' ? 9 : 18, m: 0, s: 0 };
+  const sec = Math.round(t * 86400);
+  return { h: Math.floor(sec / 3600) % 24, m: Math.floor(sec / 60) % 60, s: sec % 60 };
+}
+function placePicker() {
+  const box = combo.input.closest('.combo').getBoundingClientRect();
+  picker.style.left = `${Math.max(8, Math.min(box.left, window.innerWidth - picker.offsetWidth - 8))}px`;
+  const below = window.innerHeight - box.bottom;
+  picker.style.top = below >= picker.offsetHeight + 8 || below > box.top
+    ? `${box.bottom + 2}px`
+    : `${box.top - picker.offsetHeight - 2}px`;
+}
+function openCombo(input, refocus) {
+  closeCombo();
+  combo.input = input;
+  combo.refocus = refocus;
+  combo.part = 0;
+  combo.value = readInput(input);
+  renderPicker();
+  picker.hidden = false;
+  input.setAttribute('aria-expanded', 'true');
+  placePicker();
+  syncPicker(true);
+}
+function closeCombo() {
+  if (!combo.input) return;
+  combo.input.setAttribute('aria-expanded', 'false');
+  combo.input = null;
+  picker.hidden = true;
+}
+function finishCombo() {
+  const { input, refocus } = combo;
+  closeCombo();
+  // 터치로 고른 경우에는 포커스를 주지 않아 화면 키보드가 올라오지 않게 한다.
+  if (input && refocus) input.focus();
+}
+// 시·분·초 중 하나를 골라 입력칸에 바로 넣는다.
+function choose(part, n, scroll) {
+  combo.value[part] = n;
+  combo.part = PARTS.indexOf(part);
+  const { h, m, s } = combo.value;
+  combo.input.value = `${h}:${pad2(m)}:${pad2(s)}`;
+  combo.input.dispatchEvent(new Event('input', { bubbles: true }));
+  syncPicker(scroll);
+}
+// 시간 칸의 키 입력. 선택 창을 다룬 경우 true를 돌려줌
+function handleComboKey(e) {
+  const el = e.target;
+  if (!el.classList.contains('time')) return false;
+  if (combo.input !== el) {
+    if (!(e.altKey && e.key === 'ArrowDown')) return false;
+    e.preventDefault();
+    openCombo(el, true);
+    return true;
+  }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    combo.part = (combo.part + (e.key === 'ArrowRight' ? 1 : PARTS.length - 1)) % PARTS.length;
+    syncPicker(false);
+    return true;
+  }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const part = PARTS[combo.part];
+    const options = partOptions(part);
+    const idx = Math.max(0, options.indexOf(combo.value[part]));
+    const next = Math.min(options.length - 1, Math.max(0, idx + (e.key === 'ArrowDown' ? 1 : -1)));
+    choose(part, options[next], true);
+    return true;
+  }
+  if (e.key === 'Enter' || e.key === 'Escape') {
+    e.preventDefault();
+    finishCombo();
+    return true;
+  }
+  if (e.key === 'Tab') closeCombo();
+  return false;
+}
+
+table.addEventListener('click', (e) => {
+  const btn = e.target.closest('.combo-toggle');
+  if (!btn) return;
+  const input = btn.parentElement.querySelector('input');
+  if (combo.input === input) closeCombo();
+  else openCombo(input, lastPointerType === 'mouse');
+});
+// 선택 창이 열린 채 직접 입력하면 선택 창의 값도 따라간다.
+table.addEventListener('input', (e) => {
+  if (combo.input !== e.target || parseTimeText(e.target.value) === null) return;
+  combo.value = readInput(e.target);
+  syncPicker(true);
+});
+picker.addEventListener('pointerdown', (e) => e.preventDefault());
+picker.addEventListener('click', (e) => {
+  if (e.target.closest('.picker-done')) {
+    finishCombo();
+    return;
+  }
+  const li = e.target.closest('li[role="option"]');
+  if (li) choose(li.parentElement.dataset.part, Number(li.dataset.value), false);
+});
+document.addEventListener('pointerdown', (e) => {
+  if (!combo.input || picker.contains(e.target)) return;
+  if (e.target.closest('.combo') !== combo.input.closest('.combo')) closeCombo();
+});
+window.addEventListener('scroll', (e) => {
+  if (combo.input && !picker.contains(e.target)) closeCombo();
+}, true);
+window.addEventListener('resize', closeCombo);
 
 // 모바일: 1·2주차를 탭으로 나눠 본다(넓은 화면은 표 전체).
 const weekTabs = [...document.querySelectorAll('#weekTabs [role="tab"]')];
