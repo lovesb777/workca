@@ -90,13 +90,6 @@ h1 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; te
   border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; margin-left: 8px; vertical-align: 0.3em;
 }
 .sub { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
-.tabs { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
-.tabs button {
-  font: inherit; font-size: 0.9rem; font-weight: 600; color: var(--muted);
-  background: transparent; border: 0; border-radius: 6px; padding: 6px 16px; cursor: pointer;
-}
-.tabs button:hover { color: var(--ink); }
-.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
 .top-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 .account { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 10px; font-size: 0.82rem; color: var(--muted); }
 .account .who { color: var(--ink); font-weight: 600; }
@@ -294,7 +287,7 @@ table.sheet {
   .account { justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .btn, .tabs button, .stat { transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+  .btn, .stat { transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
 }
 </style>
 </head>
@@ -303,7 +296,7 @@ table.sheet {
   <header class="top">
     <div>
       <h1>근무시간 계산기<span class="ver">v3.0</span></h1>
-      <p class="sub">출퇴근 시간을 입력하면 확정 근무 시간과 잔특근 인정 시간을 계산합니다.</p>
+      <p class="sub">2주 단위로 출퇴근 시간을 입력하면 확정 근무 시간과 잔특근 인정 시간을 계산합니다.</p>
     </div>
     <div class="top-right">
       <div class="account" id="account" hidden>
@@ -311,10 +304,6 @@ table.sheet {
         <span class="who" id="who" hidden></span>
         <button type="button" class="btn" id="btnLogin">Google 계정으로 로그인</button>
         <button type="button" class="btn" id="btnLogout" hidden>로그아웃</button>
-      </div>
-      <div class="tabs" role="tablist" aria-label="계산 단위">
-        <button type="button" role="tab" id="tab-w2" data-sheet="w2" aria-controls="panel">2주 단위</button>
-        <button type="button" role="tab" id="tab-w1" data-sheet="w1" aria-controls="panel">1주 단위</button>
       </div>
     </div>
   </header>
@@ -346,7 +335,7 @@ table.sheet {
     </div>
   </div>
 
-  <div class="sheet-wrap" role="tabpanel" id="panel">
+  <div class="sheet-wrap" id="panel">
     <table class="sheet" id="sheet"></table>
   </div>
   <ul class="issues" id="issues" role="status" hidden></ul>
@@ -696,7 +685,6 @@ const MEAL_FIELDS = ['breakfast', 'dinner'];
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 const SHEETS = {
   w2: { days: [...DAYS, ...DAYS], weeks: true },
-  w1: { days: DAYS, weeks: false },
 };
 const STORE_KEY = 'worktime-calculator-v3';
 
@@ -708,6 +696,7 @@ const DEFAULT_START = '9:00:00';
 const DEFAULT_END = '18:00:00';
 const defaultRow = (day) => (WEEKDAYS.includes(day) ? { ...blankRow(), start: DEFAULT_START, end: DEFAULT_END } : blankRow());
 const defaultData = () => Object.fromEntries(Object.entries(SHEETS).map(([key, cfg]) => [key, cfg.days.map(defaultRow)]));
+const defaultSample = () => Object.fromEntries(Object.keys(SHEETS).map((key) => [key, true]));
 const sameRows = (a, b) => a.every((r, i) => [...TEXT_FIELDS, ...MEAL_FIELDS].every((f) => r[f] === b[i][f]));
 // 표가 기본값 그대로인지 기록한다. 기본값 그대로인 표는 다음에 열 때 최신 기본값으로 다시 채운다.
 function syncPristine() {
@@ -775,7 +764,7 @@ function saveState() {
   scheduleRemote();
 }
 
-const state = loadState() ?? { sheet: 'w2', data: defaultData(), sample: { w2: true, w1: true }, owner: null, dirty: false };
+const state = loadState() ?? { sheet: 'w2', data: defaultData(), sample: defaultSample(), owner: null, dirty: false };
 
 const $ = (id) => document.getElementById(id);
 const table = $('sheet');
@@ -818,7 +807,6 @@ function renderTable() {
   const widths = cfg.weeks ? [WEEK_COL_WIDTH, ...COL_WIDTHS] : COL_WIDTHS;
   table.style.setProperty('--table-min', `${widths.reduce((a, b) => a + b, 0)}px`);
   table.style.setProperty('--week-w', cfg.weeks ? `${WEEK_COL_WIDTH}px` : '0px');
-  $('panel').setAttribute('aria-labelledby', `tab-${state.sheet}`);
 
   let html = `<colgroup>${widths.map((w) => `<col style="width:${w}px">`).join('')}</colgroup><thead><tr>`;
   if (cfg.weeks) html += '<th rowspan="2" scope="col" class="c-week">구간</th>';
@@ -962,25 +950,12 @@ function recalc() {
 }
 
 function updateChrome() {
-  for (const btn of document.querySelectorAll('[role="tab"]')) {
-    const selected = btn.dataset.sheet === state.sheet;
-    btn.setAttribute('aria-selected', String(selected));
-    btn.tabIndex = selected ? 0 : -1;
-  }
   const where = cloud.user ? '계정' : '이 브라우저';
   $('note').textContent = state.sample[state.sheet]
     ? `기본값(평일 9:00~18:00, 체류 9시간)으로 채워 두었습니다. 입력값은 ${where}에 자동 저장됩니다.`
     : `입력값은 ${where}에 자동 저장됩니다.`;
 }
 
-function showSheet(sheet) {
-  state.sheet = sheet;
-  saveState();
-  if (!cloud.conflict) closeConfirm();
-  renderTable();
-  recalc();
-  updateChrome();
-}
 
 // 표 입력
 table.addEventListener('input', (e) => {
@@ -1022,17 +997,6 @@ table.addEventListener('keydown', (e) => {
   next.select();
 });
 
-// 탭
-const tabs = [...document.querySelectorAll('[role="tab"]')];
-for (const btn of tabs) {
-  btn.addEventListener('click', () => showSheet(btn.dataset.sheet));
-  btn.addEventListener('keydown', (e) => {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-    const next = tabs[(tabs.indexOf(btn) + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
-    next.focus();
-    showSheet(next.dataset.sheet);
-  });
-}
 
 // 전체 초기화 — 확인 단계는 페이지 안에서 처리한다.
 let pending = null;
@@ -1119,7 +1083,7 @@ function showState() {
 }
 function resetLocal() {
   state.data = defaultData();
-  state.sample = { w2: true, w1: true };
+  state.sample = defaultSample();
   state.owner = null;
   state.dirty = false;
   showState();
@@ -1181,7 +1145,7 @@ async function syncOnLogin() {
     } else if (state.owner === uid && state.dirty) {
       // 지난번에 올리지 못한 변경이 있으면 올린다.
       await pushRemote();
-    } else if (state.owner === uid || (state.sample.w2 && state.sample.w1) || sameState(remote, state)) {
+    } else if (state.owner === uid || Object.keys(SHEETS).every((key) => state.sample[key]) || sameState(remote, state)) {
       applyRemote(remote);
     } else {
       // 로그인 전에 이 브라우저에서 입력한 기록이 계정 기록과 다르면 고르게 한다.
