@@ -129,6 +129,7 @@ h1 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; te
   background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px;
 }
 .base-date .range { font-family: var(--font-num); color: var(--muted); }
+.base-date .holiday-note { color: var(--muted); }
 .week-tabs { display: none; }
 .actions, .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .confirm span { font-size: 0.85rem; font-weight: 500; }
@@ -167,6 +168,8 @@ table.sheet {
 .wk-tag, .day-suffix { display: none; }
 .sheet .day-name { display: block; line-height: 1.2; }
 .sheet .day-date { display: block; font-family: var(--font-num); font-size: 0.7rem; font-weight: 500; line-height: 1.2; opacity: 0.8; }
+.sheet .day-date.is-holiday { color: var(--sun); opacity: 1; }
+.sheet .day-holiday { display: none; }
 .sheet tr.week-start > * { border-top: 2px solid var(--line); }
 .sheet td.in { background: var(--field); }
 .sheet input, .sheet select {
@@ -317,6 +320,8 @@ table.sheet {
   .sheet[data-week="1"] tbody tr.week-2,
   .sheet[data-week="2"] tbody tr.week-1 { display: none; }
   .sheet .k-day .day-date { color: var(--muted); font-size: 0.85rem; opacity: 1; }
+  .sheet .k-day .day-date.is-holiday { color: var(--sun); }
+  .sheet .k-day .day-holiday { display: inline; color: var(--sun); font-size: 0.78rem; font-weight: 600; }
   .base-date input { font-size: 16px; }
   .week-tabs {
     display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px;
@@ -393,6 +398,7 @@ table.sheet {
       <input type="date" id="baseDate">
       <button type="button" class="btn" id="btnClearDate" hidden>날짜 지우기</button>
       <span class="range" id="dateRange"></span>
+      <span class="holiday-note" id="holidayNote"></span>
     </div>
     <p class="note" id="note"></p>
     <div class="actions" id="actions">
@@ -435,7 +441,7 @@ table.sheet {
       <li><b>비업무 시간</b>: 숫자로 분을 1분 단위로 입력하세요</li>
       <li><b>식사</b>: 조식·석식을 먹었으면 체크하세요. 한 끼에 30분씩 근무 시간에서 빠집니다</li>
       <li><b>잔특근 신청 시간</b>: 숫자로 분을 10분 단위로 입력하세요</li>
-      <li><b>1주차 기준일</b>: 선택 사항입니다. 날짜를 고르면 그 주 월요일부터 1주차로 보고 요일 옆에 날짜를 보여 줍니다. 비우면 요일만 보입니다</li>
+      <li><b>1주차 기준일</b>: 선택 사항입니다. 날짜를 고르면 그 주 월요일부터 1주차로 보고 요일 옆에 날짜를 보여 줍니다. 그 2주 안의 평일 공휴일(대체공휴일·선거일 포함)은 근태가 자동으로 '휴일'이 됩니다(우주항공청 월력요항 기준, 현재 2027년까지). 비우면 요일만 보입니다</li>
       <li><b>초기화 / 비우기</b>: 줄 끝의 「초기화」는 그 요일을 기본값(평일 9:00~18:00, 주말 빈칸)으로 되돌리고, 「비우기」는 그 요일의 입력을 모두 지웁니다. 「전체 초기화」·「전체 비우기」는 표 전체에 같은 동작을 합니다</li>
       <li><b>키보드</b>: Tab은 직접 입력 칸(출퇴근 시간, 비업무, 잔특근 신청) 사이만 이동합니다. Enter·↑·↓는 같은 열의 위아래 칸으로, 시간 칸에서 Alt+↓는 시·분·초 선택 창을 엽니다(←→ 칸 이동, ↑↓ 값 변경, Enter 닫기)</li>
     </ul>
@@ -794,6 +800,7 @@ const STORE_KEY = 'worktime-calculator-v3';
 
 const blankRow = () => ({
   vacation: '', start: '', end: '', sys: '', personal: '', requested: '', breakfast: false, dinner: false,
+  autoHoliday: false, // 기준일의 공휴일로 자동 적용한 '휴일'인지
 });
 // 초기화 기본값: 평일은 9:00~18:00(체류 9시간), 주말은 빈칸
 const DEFAULT_START = '9:00:00';
@@ -847,6 +854,7 @@ function migrateRow(r) {
   const row = blankRow();
   for (const f of TEXT_FIELDS) row[f] = r[f];
   for (const f of MEAL_FIELDS) row[f] = r[f] === true;
+  row.autoHoliday = r.autoHoliday === true;
   if (row.vacation === '' && String(r.holiday ?? '').toUpperCase() === 'O') row.vacation = '휴일';
   return row;
 }
@@ -962,6 +970,7 @@ function renderTable() {
     + '</tr><tr><th scope="col">시스템</th><th scope="col">개인</th><th scope="col">조식</th><th scope="col">석식</th><th scope="col">분</th><th scope="col">시간</th></tr></thead><tbody>';
 
   const dates = rowDates();
+  const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   table.dataset.week = String(activeWeek);
   cfg.days.forEach((day, i) => {
     const wk = cfg.weeks ? (i < 7 ? 'wk1' : 'wk2') : 'wk0';
@@ -970,10 +979,12 @@ function renderTable() {
     html += `<tr data-row="${i}" class="week-${i < 7 ? 1 : 2}${cfg.weeks && i === 7 ? ' week-start' : ''}">`;
     if (cfg.weeks && i % 7 === 0) html += `<th rowspan="7" scope="rowgroup" class="c-week ${wk}">${week}</th>`;
     const dayClass = day === '토' ? ' sat' : day === '일' ? ' sun' : '';
+    const holiday = dates ? holidayNameOf(dates[i]) : null;
     html += `<th scope="row" class="c-day k-day ${wk}${dayClass}">`
       + (week ? `<span class="wk-tag ${wk}">${week}</span>` : '')
       + `<span class="day-name">${day}<span class="day-suffix">요일</span></span>`
-      + (dates ? `<small class="day-date">${monthDay(dates[i])}</small>` : '')
+      + (dates ? `<small class="day-date${holiday ? ' is-holiday' : ''}"${holiday ? ` title="${escapeHtml(holiday)}"` : ''}>${monthDay(dates[i])}</small>` : '')
+      + (holiday ? `<small class="day-holiday">${escapeHtml(holiday)}</small>` : '')
       + '</th>'
       + `<td class="in k-att" data-label="근태"><select id="${fieldId(i, 'vacation')}" data-f="vacation" tabindex="-1" aria-label="${label} 근태"><option value=""></option><option>연차</option><option>반차</option><option>반반차</option><option>휴일</option></select></td>`
       + `<td class="in k-start" data-label="출근"><div class="combo"><input class="time" id="${fieldId(i, 'start')}" data-f="start" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" role="combobox" aria-haspopup="dialog" aria-expanded="false" aria-controls="timePicker" aria-label="${label} 출근 시간"><button type="button" class="combo-toggle" tabindex="-1" aria-label="${label} 출근 시간 선택">${CHEVRON}</button></div></td>`
@@ -1119,6 +1130,7 @@ function updateChrome() {
   $('baseDate').value = state.baseDate;
   $('btnClearDate').hidden = !state.baseDate;
   $('dateRange').textContent = dates ? `${monthDay(dates[0])}(월) ~ ${monthDay(dates[dates.length - 1])}(일)` : '';
+  $('holidayNote').textContent = holidayNote();
   const where = cloud.user ? '계정' : '이 브라우저';
   $('note').textContent = state.sample[state.sheet]
     ? `기본값(평일 9:00~18:00, 체류 9시간)으로 채워 두었습니다. 입력값은 ${where}에 자동 저장됩니다.`
@@ -1133,7 +1145,10 @@ table.addEventListener('input', (e) => {
   if (!f) return;
   const i = Number(el.closest('tr').dataset.row);
   state.data[state.sheet][i][f] = el.type === 'checkbox' ? el.checked : el.value;
-  if (f === 'vacation') applyAttendanceDefaults(i);
+  if (f === 'vacation') {
+    state.data[state.sheet][i].autoHoliday = false; // 직접 고른 근태는 공휴일 자동 적용이 덮어쓰지 않는다.
+    applyAttendanceDefaults(i);
+  }
   syncPristine();
   saveState();
   recalc();
@@ -1218,6 +1233,7 @@ $('btnResetAll').addEventListener('click', () => {
     renderTable();
     recalc();
     updateChrome();
+    applyHolidays();
   });
 });
 
@@ -1241,6 +1257,7 @@ table.addEventListener('click', (e) => {
   saveState();
   recalc();
   updateChrome();
+  if (!btn.classList.contains('row-clear')) applyHolidays([i]);
 });
 
 // ==== 시간 콤보박스 ====
@@ -1423,6 +1440,98 @@ function setBaseDate(value) {
   renderTable();
   recalc();
   updateChrome();
+  return applyHolidays();
+}
+
+// ==== 공휴일 자동 적용 ====
+// 기준일을 정하면 그 2주 안의 평일 공휴일을 근태 '휴일'로 채운다.
+// 데이터: @hyunbinseo/holidays-kr(우주항공청 월력요항). 새 해 데이터가 배포되면 버전을 올린다.
+const HOLIDAY_SDK = 'https://cdn.jsdelivr.net/npm/@hyunbinseo/holidays-kr@5.2027.2/dist/index.js';
+const holidayCache = {}; // { '2026': { 'YYYY-MM-DD': ['명칭'] } 또는 null(그 해 데이터 없음) }
+let holidayModule = null;
+let holidayLoadFailed = false;
+let holidayRun = 0;
+
+const rowYears = () => [...new Set((rowDates() ?? []).map((d) => String(d.getFullYear())))];
+async function loadHolidayYears(years) {
+  try {
+    holidayModule ??= await import(HOLIDAY_SDK);
+  } catch {
+    holidayLoadFailed = true;
+    return false;
+  }
+  await Promise.all(years.filter((y) => !(y in holidayCache)).map(async (y) => {
+    try {
+      holidayCache[y] = await holidayModule.getHolidayPreset(y);
+    } catch {
+      holidayCache[y] = null;
+    }
+  }));
+  return true;
+}
+function holidayNameOf(date) {
+  const ymd = toYmd(date);
+  return holidayCache[ymd.slice(0, 4)]?.[ymd]?.join(', ') ?? null;
+}
+function holidayNote() {
+  const dates = rowDates();
+  if (!dates) return '';
+  const years = rowYears();
+  if (years.some((y) => !(y in holidayCache))) {
+    return holidayLoadFailed ? '공휴일 정보를 불러오지 못했습니다. 휴일은 근태에서 직접 고르세요.' : '공휴일 정보를 불러오는 중…';
+  }
+  const missing = years.filter((y) => holidayCache[y] === null);
+  const days = SHEETS[state.sheet].days;
+  const list = dates
+    .map((d, i) => ({ d, i, name: holidayNameOf(d) }))
+    .filter((x) => x.name && WEEKDAYS.includes(days[x.i]))
+    .map((x) => `${monthDay(x.d)} ${x.name}`);
+  const found = list.length ? `평일 공휴일: ${list.join(', ')}` : '이 기간에는 평일 공휴일이 없습니다.';
+  return missing.length ? `${found} (${missing.join(', ')}년 공휴일 정보는 아직 없어 직접 고르세요)` : found;
+}
+// only가 없으면 이전에 자동 적용한 휴일을 되돌리고 표 전체에 다시 적용한다. only가 있으면 그 줄들에만 적용한다.
+async function applyHolidays(only = null) {
+  const run = ++holidayRun;
+  const dates = rowDates();
+  const loaded = dates ? await loadHolidayYears(rowYears()) : false;
+  if (run !== holidayRun) return; // 그 사이 기준일이 또 바뀜다.
+  const days = SHEETS[state.sheet].days;
+  state.data[state.sheet].forEach((row, i) => {
+    const weekday = WEEKDAYS.includes(days[i]);
+    if (!only && row.autoHoliday) {
+      row.autoHoliday = false;
+      if (row.vacation === '휴일') {
+        row.vacation = '';
+        if (weekday && row.start === '' && row.end === '') {
+          row.start = DEFAULT_START;
+          row.end = DEFAULT_END;
+        }
+      }
+    }
+    if (only && !only.includes(i)) return;
+    if (!loaded || !weekday || row.vacation !== '' || !holidayNameOf(dates[i])) return;
+    row.vacation = '휴일';
+    row.autoHoliday = true;
+    if (row.start === DEFAULT_START && row.end === DEFAULT_END) {
+      row.start = '';
+      row.end = '';
+    }
+  });
+  syncPristine();
+  saveState();
+  renderTable();
+  recalc();
+  updateChrome();
+}
+// 저장된 기준일로 열 때는 공휴일 이름만 보여 주고(자동 적용은 기준일을 바꿀 때만), 입력값은 건드리지 않는다.
+function loadHolidayLabels() {
+  const years = rowYears();
+  if (!years.length || years.every((y) => y in holidayCache)) return;
+  loadHolidayYears(years).then(() => {
+    renderTable();
+    recalc();
+    updateChrome();
+  });
 }
 $('baseDate').addEventListener('change', (e) => setBaseDate(mondayOf(e.target.value)));
 $('btnClearDate').addEventListener('click', () => setBaseDate(''));
@@ -1462,6 +1571,7 @@ function applyRemote(remote) {
   state.owner = cloud.user.uid;
   state.dirty = false;
   showState();
+  loadHolidayLabels();
   setSync(`계정 기록을 불러왔습니다 · ${timeNow()}`);
 }
 
@@ -1614,6 +1724,7 @@ async function initCloud() {
 renderTable();
 recalc();
 updateChrome();
+loadHolidayLabels();
 initCloud();
 </script>
 </body>
