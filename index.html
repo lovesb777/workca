@@ -37,6 +37,8 @@ img { max-width: 100%; }
   --good-bg: #C6EFCE;
   --good-fg: #006100;
   --err: #C0262D;
+  --honey-bg: #FFF3D4;
+  --honey-fg: #7A4A00;
   --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -46,6 +48,7 @@ img { max-width: 100%; }
     --head: #1E2830; --field: #1C252C; --field-focus: #222D35; --accent: #73B6D4; --accent-ink: #0A1A22;
     --wk1: #20311A; --wk1-ink: #A8D698; --wk2: #142E3D; --wk2-ink: #8ECBEA; --sat: #6FB4F2; --sun: #FF7B7B;
     --bad-bg: #4A1C22; --bad-fg: #FFB4BD; --good-bg: #17391F; --good-fg: #A5E2B3; --err: #FF8A8F;
+    --honey-bg: #3B2E10; --honey-fg: #F2C462;
     color-scheme: dark;
   }
 }
@@ -54,6 +57,7 @@ img { max-width: 100%; }
   --head: #1E2830; --field: #1C252C; --field-focus: #222D35; --accent: #73B6D4; --accent-ink: #0A1A22;
   --wk1: #20311A; --wk1-ink: #A8D698; --wk2: #142E3D; --wk2-ink: #8ECBEA; --sat: #6FB4F2; --sun: #FF7B7B;
   --bad-bg: #4A1C22; --bad-fg: #FFB4BD; --good-bg: #17391F; --good-fg: #A5E2B3; --err: #FF8A8F;
+  --honey-bg: #3B2E10; --honey-fg: #F2C462;
   color-scheme: dark;
 }
 
@@ -68,7 +72,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 .page {
-  max-width: 1120px;
+  max-width: 1220px;
   margin: 0 auto;
   padding-block: 28px 48px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -129,31 +133,36 @@ h1 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; te
 .btn:hover { border-color: var(--muted); }
 .btn.danger { background: var(--err); border-color: var(--err); color: var(--surface); }
 
-/* 기록표 */
+/* 기록표: 넓은 화면은 열 너비를 고정한 표, 좁은 화면은 요일별 카드 */
 .sheet-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
-table.sheet { width: 100%; min-width: 960px; border-collapse: separate; border-spacing: 0; font-size: 0.92rem; }
+table.sheet {
+  width: 100%; min-width: var(--table-min, 1100px); table-layout: fixed;
+  border-collapse: separate; border-spacing: 0; font-size: 0.9rem;
+}
 .sheet th, .sheet td {
-  height: 40px; padding: 0; text-align: center; vertical-align: middle; background: var(--surface);
+  height: 42px; padding: 0; text-align: center; vertical-align: middle; background: var(--surface);
   border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sheet tr > :last-child { border-right: 0; }
 .sheet thead th {
-  height: auto; padding: 7px 8px; background: var(--head); font-size: 0.8rem; font-weight: 600; line-height: 1.3;
+  height: auto; padding: 8px 4px; background: var(--head); color: var(--ink);
+  font-size: 0.78rem; font-weight: 600; line-height: 1.35;
+  white-space: normal; word-break: keep-all; overflow-wrap: anywhere;
   border-bottom-color: var(--line);
 }
-.sheet .c-week { position: sticky; left: 0; z-index: 2; width: 64px; min-width: 64px; font-size: 0.82rem; font-weight: 600; }
-.sheet .c-day { position: sticky; left: 64px; z-index: 2; width: 52px; min-width: 52px; font-weight: 600; }
-.sheet.no-week .c-day { left: 0; }
-.sheet .c-day { border-right-color: var(--line); }
+.sheet .c-week { position: sticky; left: 0; z-index: 2; font-size: 0.8rem; font-weight: 600; }
+.sheet .c-day { position: sticky; left: var(--week-w, 0px); z-index: 2; font-weight: 600; border-right-color: var(--line); }
 .sheet .wk0 { background: var(--head); }
 .sheet .wk1 { background: var(--wk1); color: var(--wk1-ink); }
 .sheet .wk2 { background: var(--wk2); color: var(--wk2-ink); }
 .sheet .c-day.sat { color: var(--sat); }
 .sheet .c-day.sun { color: var(--sun); }
+.wk-tag, .day-suffix { display: none; }
 .sheet tr.week-start > * { border-top: 2px solid var(--line); }
 .sheet td.in { background: var(--field); }
 .sheet input, .sheet select {
-  display: block; width: 100%; height: 40px; margin: 0; padding: 0 6px;
+  display: block; width: 100%; height: 42px; margin: 0; padding: 0 6px;
   font: inherit; color: inherit; text-align: center; text-align-last: center;
   background: transparent; border: 0; border-radius: 0;
 }
@@ -162,12 +171,105 @@ table.sheet { width: 100%; min-width: 960px; border-collapse: separate; border-s
 .sheet input.time, .sheet input.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .sheet input::placeholder { color: var(--muted); opacity: 0.45; }
 .sheet input[aria-invalid="true"] { color: var(--err); box-shadow: inset 0 0 0 1.5px var(--err); }
-.sheet td.out { padding: 0 8px; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.sheet td.out { padding: 0 6px; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .sheet td.out.zero { color: var(--muted); }
+.sheet td.honey {
+  padding: 0 6px; background: var(--honey-bg); color: var(--honey-fg);
+  font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 500;
+}
+.sheet td.honey small { font-family: var(--font-ui); font-size: 0.72rem; font-weight: 600; margin-right: 3px; }
+.sheet thead th.h-honey { color: var(--honey-fg); }
+.sheet td.check { cursor: pointer; }
+.sheet td.check input { width: 18px; height: 18px; margin: 0 auto; padding: 0; accent-color: var(--accent); cursor: pointer; }
+.sheet td.check input:focus { outline-offset: 2px; }
+.row-reset {
+  font: inherit; font-size: 0.78rem; font-weight: 500; color: var(--muted); white-space: nowrap;
+  background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+.row-reset:hover { color: var(--ink); border-color: var(--muted); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.issues { margin: -8px 0 0; padding-left: 1.1em; display: grid; gap: 2px; color: var(--err); font-size: 0.85rem; }
 .sheet .err { color: var(--err); font-weight: 600; }
-.sheet tfoot th, .sheet tfoot td { background: var(--head); font-weight: 600; border-top: 1px solid var(--line); border-bottom: 0; }
-.sheet tfoot th { position: sticky; left: 0; z-index: 2; }
-.sheet tfoot td { font-family: var(--font-num); font-variant-numeric: tabular-nums; padding: 0 8px; }
+.sheet tfoot th, .sheet tfoot td { height: 44px; background: var(--head); font-weight: 600; border-top: 1px solid var(--line); border-bottom: 0; }
+.sheet tfoot th { position: sticky; left: 0; z-index: 2; text-align: left; padding: 0 14px; }
+.sheet tfoot td { font-family: var(--font-num); font-variant-numeric: tabular-nums; padding: 0 6px; }
+
+@media (max-width: 760px) {
+  .sheet-wrap { overflow: visible; background: none; border: 0; border-radius: 0; }
+  table.sheet { display: block; min-width: 0; font-size: 0.95rem; }
+  .sheet colgroup, .sheet thead, .sheet .c-week, .sheet tfoot td:empty { display: none; }
+  .sheet tbody, .sheet tfoot { display: grid; gap: 10px; }
+  .sheet tfoot { margin-top: 10px; }
+  .sheet tr {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 8px; padding: 12px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    grid-template-areas:
+      "day day day reset"
+      "start start end end"
+      "honey honey honey honey"
+      "att att req req"
+      "sys sys per per"
+      "bf bf dn dn"
+      "work work ot ott";
+  }
+  .sheet th, .sheet td, .sheet .c-day, .sheet tfoot th, .sheet tfoot td {
+    position: static; display: block; height: auto; padding: 0; min-width: 0;
+    border: 0; background: none; text-align: left; white-space: normal; overflow: visible;
+  }
+  .sheet tr.week-start > * { border-top: 0; }
+  .sheet td[data-label]::before {
+    content: attr(data-label); display: block; margin-bottom: 4px;
+    font-family: var(--font-ui); font-size: 0.72rem; font-weight: 600; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sheet .k-day { grid-area: day; display: flex; align-items: center; gap: 8px; font-size: 1.02rem; }
+  .sheet tr > th.k-day { background: none; color: var(--ink); }
+  .sheet .wk-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+  .sheet .day-suffix { display: inline; }
+  .sheet .k-reset { grid-area: reset; justify-self: end; align-self: center; }
+  .sheet .k-start { grid-area: start; }
+  .sheet .k-end { grid-area: end; }
+  .sheet .k-honey { grid-area: honey; }
+  .sheet .k-att { grid-area: att; }
+  .sheet .k-sys { grid-area: sys; }
+  .sheet .k-per { grid-area: per; }
+  .sheet .k-req { grid-area: req; }
+  .sheet .k-bf { grid-area: bf; }
+  .sheet .k-dn { grid-area: dn; }
+  .sheet .k-work { grid-area: work; }
+  .sheet .k-ot { grid-area: ot; }
+  .sheet .k-ott { grid-area: ott; }
+  .sheet td.in { background: none; }
+  .sheet td.in input:not([type="checkbox"]), .sheet td.in select {
+    height: 42px; padding: 0 10px; font-size: 16px; text-align: left; text-align-last: left;
+    background: var(--field); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .sheet input:focus, .sheet select:focus { outline-offset: 1px; }
+  .sheet td.honey:empty { display: none; }
+  .sheet td.honey {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    padding: 10px 12px; border-radius: 8px; background: var(--honey-bg); font-size: 1.02rem;
+  }
+  .sheet td.honey::before { display: inline; margin: 0; margin-right: auto; color: var(--honey-fg); }
+  .sheet td.check {
+    display: flex; flex-direction: row-reverse; justify-content: flex-end; align-items: center; gap: 10px;
+    height: 42px; padding: 0 12px; background: var(--field); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .sheet td.check::before { display: inline; margin: 0; font-size: 0.88rem; font-weight: 500; color: var(--ink); }
+  .sheet td.check input { width: 20px; height: 20px; margin: 0; }
+  .sheet td.out { padding-top: 10px; border-top: 1px dashed var(--line); font-size: 1.05rem; }
+  .sheet td.k-work { font-weight: 600; }
+  .sheet tfoot tr {
+    background: var(--head);
+    grid-template-areas: "title title title title" "f1 f1 f2 f2" "f3 f3 f4 f4";
+  }
+  .sheet tfoot th { grid-area: title; font-size: 0.95rem; }
+  .sheet tfoot td { font-size: 1.02rem; }
+  .sheet .k-f1 { grid-area: f1; }
+  .sheet .k-f2 { grid-area: f2; }
+  .sheet .k-f3 { grid-area: f3; }
+  .sheet .k-f4 { grid-area: f4; }
+}
 
 /* 안내 */
 .guide { display: grid; gap: 8px; }
@@ -222,8 +324,7 @@ table.sheet { width: 100%; min-width: 960px; border-collapse: separate; border-s
   <div class="bar">
     <p class="note" id="note"></p>
     <div class="actions" id="actions">
-      <button type="button" class="btn" id="btnSample">예시값 넣기</button>
-      <button type="button" class="btn" id="btnClear">표 비우기</button>
+      <button type="button" class="btn" id="btnResetAll">전체 초기화</button>
     </div>
     <div class="confirm" id="confirm" hidden>
       <span id="confirmMsg"></span>
@@ -235,24 +336,28 @@ table.sheet { width: 100%; min-width: 960px; border-collapse: separate; border-s
   <div class="sheet-wrap" role="tabpanel" id="panel">
     <table class="sheet" id="sheet"></table>
   </div>
+  <ul class="issues" id="issues" role="status" hidden></ul>
 
   <section class="guide">
     <h2>입력 안내</h2>
     <ul>
-      <li><b>공휴일/휴무</b>: 공휴일이나 휴무 시 "O"를 선택하세요</li>
-      <li><b>연차</b>: 연차 / 반차 / 반반차 사용 시 선택하세요</li>
-      <li><b>출근 시간</b>: "hh:mm:ss" 형식으로 입력하세요</li>
-      <li><b>퇴근 시간</b>: "hh:mm:ss" 형식으로 입력하세요</li>
+      <li><b>근태</b>: 연차 / 반차 / 반반차 / 휴일 사용 시 선택하세요. 공휴일·휴무도 휴일로 선택합니다. 휴일·연차를 고르면 기본 출퇴근 시간(9:00~18:00)은 비워지며, 휴일에 근무했다면 출퇴근 시간을 입력하세요</li>
+      <li><b>출근 시간</b>: "hh:mm:ss" 형식으로 입력하세요. 6:00:00부터 출근할 수 있습니다</li>
+      <li><b>퇴근 시간</b>: "hh:mm:ss" 형식으로 입력하세요. 출근보다 이른 시각은 다음 날로 계산하며, 다음 날 5:59:59까지 퇴근할 수 있습니다</li>
+      <li><b>꿀근무 퇴근</b>: 출근 시간 + 8시간 29분입니다. 체류 8시간 30분부터 휴게 30분이 한 번 더 빠지므로, 이 시각까지 퇴근하면 휴게는 30분만 빠집니다</li>
       <li><b>비업무 시간</b>: 숫자로 분을 1분 단위로 입력하세요</li>
+      <li><b>식사</b>: 조식·석식을 먹었으면 체크하세요. 한 끼에 30분씩 근무 시간에서 빠집니다</li>
       <li><b>잔특근 신청 시간</b>: 숫자로 분을 10분 단위로 입력하세요</li>
+      <li><b>초기화</b>: 줄 끝의 「초기화」는 그 요일만, 「전체 초기화」는 표 전체를 기본값(평일 9:00~18:00, 주말 빈칸)으로 되돌립니다</li>
     </ul>
-    <p class="source">계산 규칙은 <code>근무시간_계산기_v3.0.xlsm</code>의 VBA 함수를 그대로 옮겼습니다. 입력값은 이 브라우저에만 저장됩니다.</p>
+    <p class="source">계산 규칙은 <code>근무시간_계산기_v3.0.xlsm</code>의 VBA 함수를 그대로 옮기고, 휴일·식사 차감·꿀근무·근무 가능 시간을 더했습니다. 입력값은 이 브라우저에만 저장됩니다.</p>
   </section>
 </div>
 
 <script>
 // ==== engine:start ====
 // 엑셀 VBA 사용자 정의 함수(WorkTime, OverTime, Sum, Subtract 모듈)를 그대로 옮긴 계산부.
+// (추가)로 표시한 부분은 원본 엑셀에 없는 규칙: 근태 '휴일', 조식·석식 차감, 꿀근무 퇴근, 근무 가능 시간.
 // 셀 값: null = 빈 셀, number = 숫자(시간은 하루 = 1인 일련값), string = 텍스트, VALUE_ERR = #VALUE!
 const VALUE_ERR = Object.freeze({ error: '#VALUE!' });
 const isErr = (v) => v === VALUE_ERR;
@@ -332,7 +437,7 @@ const WEEKEND = ['토', '토요일', 'SUN', 'SAT', '일', '일요일'];
 const WEEKDAYS = ['월', '화', '수', '목', '금'];
 
 // WorkTime.CalculateWorkTime — 확정 근무 시간
-function calculateWorkTime(dayCell, holidayCell, startCell, endCell, break1Cell, break2Cell) {
+function calculateWorkTime(dayCell, holidayCell, startCell, endCell, break1Cell, break2Cell, mealMinutes = 0) {
   return udf(() => {
     let dayOfWeek = cStr(dayCell);
     const holidayFlag = cStr(holidayCell);
@@ -346,8 +451,8 @@ function calculateWorkTime(dayCell, holidayCell, startCell, endCell, break1Cell,
     if (endTime < startTime) totalMinutes = (endTime + 1 - startTime) * 24 * 60;
     else totalMinutes = (endTime - startTime) * 24 * 60;
 
-    // 비업무시간 총합
-    const nonWorkMinutes = break1 + break2;
+    // 비업무시간 총합 (추가: 조식·석식 차감)
+    const nonWorkMinutes = break1 + break2 + mealMinutes;
     let remainingMinutes = totalMinutes;
     let breakCount = 0;
     let totalBreakMinutes = 0;
@@ -499,10 +604,48 @@ function isPositiveTime(cell) {
   }
 }
 
-// 시트 하나를 다시 계산한다. rows: [{ day, holiday, vacation, start, end, sys, personal, requested }] (셀 값)
+// (추가) 근무 가능 시간: 출근은 6:00:00부터, 퇴근은 다음 날 5:59:59까지.
+// 범위를 벗어난 시각은 잘못된 입력으로 보고 #VALUE!로 계산한다.
+const DAY_START_SECONDS = 6 * 3600;
+function workWindowIssues(startCell, endCell) {
+  const issues = {};
+  const s = typeof startCell === 'number' ? Math.round(startCell * 86400) : null;
+  const e = typeof endCell === 'number' ? Math.round(endCell * 86400) : null;
+  if (s !== null && s < DAY_START_SECONDS) {
+    issues.start = '출근은 6:00:00부터 할 수 있습니다';
+  } else if (s !== null && e !== null && e < s && e >= DAY_START_SECONDS) {
+    issues.end = '퇴근은 다음 날 5:59:59까지 할 수 있습니다';
+  }
+  return issues;
+}
+
+// (추가) 꿀근무 퇴근: 체류 8시간 30분부터 휴게 30분이 한 번 더 빠지므로, 출근 + 8시간 29분까지
+// 퇴근하면 휴게는 30분만 빠진다. 평일 정상 근무일만 해당. 반환값은 출근일 0시부터의 초.
+const HONEY_STAY_SECONDS = (8 * 60 + 29) * 60;
+function honeyLeaveTime(day, holiday, vacation, start) {
+  if (typeof start !== 'number') return null;
+  if (!WEEKDAYS.includes(day) || String(holiday ?? '').toUpperCase() === 'O' || vacation !== null) return null;
+  const leave = Math.round(start * 86400) + HONEY_STAY_SECONDS;
+  return leave < 86400 + DAY_START_SECONDS ? leave : null;
+}
+
+// (추가) 조식·석식은 한 끼에 30분씩 근무 시간에서 뺀다.
+const MEAL_MINUTES = 30;
+
+// 시트 하나를 다시 계산한다.
+// rows: [{ day, holiday, vacation, start, end, sys, personal, requested, breakfast, dinner }] (셀 값, 식사는 true/false)
 function computeSheet(rows) {
-  const work = rows.map((r) => calculateWorkTime(r.day, r.holiday, r.start, r.end, r.sys, r.personal));
-  const overtime = rows.map((r, i) => calculateOvertime(r.day, r.holiday, r.requested, work[i]));
+  // (추가) 근태 '휴일'은 원본의 공휴일/휴무 "O"와 같게 계산한다. 화면에는 공휴일/휴무 칸이 없다.
+  const holidays = rows.map((r) => (r.vacation === '휴일' ? 'O' : r.holiday ?? null));
+  const windowIssues = rows.map((r) => workWindowIssues(r.start, r.end));
+  const starts = rows.map((r, i) => (windowIssues[i].start ? VALUE_ERR : r.start));
+  const ends = rows.map((r, i) => (windowIssues[i].end ? VALUE_ERR : r.end));
+  const work = rows.map((r, i) => calculateWorkTime(
+    r.day, holidays[i], starts[i], ends[i], r.sys, r.personal,
+    MEAL_MINUTES * ((r.breakfast ? 1 : 0) + (r.dinner ? 1 : 0)),
+  ));
+  const overtime = rows.map((r, i) => calculateOvertime(r.day, holidays[i], r.requested, work[i]));
+  const honey = rows.map((r, i) => honeyLeaveTime(r.day, holidays[i], r.vacation, starts[i]));
   const overtimeText = overtime.map(textHHMM);
   const totals = {
     requested: sumOvertimeMin(rows.map((r) => r.requested)),
@@ -510,14 +653,13 @@ function computeSheet(rows) {
     overtime: sumOvertimeMin(overtime),
     overtimeText: sumWorkTime(overtimeText),
   };
-  const required = calculateRequiredWorkTime(
-    rows.map((r) => r.day),
-    rows.map((r) => r.holiday),
-    rows.map((r) => r.vacation),
-  );
+  const required = calculateRequiredWorkTime(rows.map((r) => r.day), holidays, rows.map((r) => r.vacation));
   const accumulated = subtractTime(totals.work, totals.overtime);
   const shortfall = subtractTime(required, accumulated);
-  return { work, overtime, overtimeText, totals, required, accumulated, shortfall, shortfallPositive: isPositiveTime(shortfall) };
+  return {
+    work, overtime, overtimeText, honey, windowIssues, totals, required, accumulated, shortfall,
+    shortfallPositive: isPositiveTime(shortfall),
+  };
 }
 
 // 입력 문자열 → 셀 값 (엑셀이 셀 입력을 해석하는 방식)
@@ -535,7 +677,8 @@ function numberInputToCell(text) {
 const choiceToCell = (text) => (text === '' ? null : text);
 // ==== engine:end ====
 
-const FIELDS = ['holiday', 'vacation', 'start', 'end', 'sys', 'personal', 'requested'];
+const TEXT_FIELDS = ['vacation', 'start', 'end', 'sys', 'personal', 'requested'];
+const MEAL_FIELDS = ['breakfast', 'dinner'];
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 const SHEETS = {
   w2: { days: [...DAYS, ...DAYS], weeks: true },
@@ -543,46 +686,51 @@ const SHEETS = {
 };
 const STORE_KEY = 'worktime-calculator-v3';
 
-const blankRow = () => ({ holiday: '', vacation: '', start: '', end: '', sys: '', personal: '', requested: '' });
-const workRow = (start, end, extra) => ({ ...blankRow(), start, end, ...extra });
-// 처음 열었을 때 보여 줄 가상의 예시값
-const sampleData = () => ({
-  w2: [
-    workRow('9:00:00', '18:00:00'),
-    workRow('8:30:00', '20:00:00', { requested: '60' }),
-    workRow('9:00:00', '18:00:00', { sys: '10' }),
-    workRow('9:00:00', '18:00:00'),
-    workRow('9:00:00', '13:30:00', { vacation: '반차' }),
-    blankRow(),
-    blankRow(),
-    workRow('9:00:00', '18:00:00'),
-    workRow('9:00:00', '18:00:00', { personal: '15' }),
-    { ...blankRow(), holiday: 'O' },
-    workRow('8:00:00', '19:30:00', { requested: '90' }),
-    blankRow(),
-    workRow('10:00:00', '14:00:00', { requested: '240' }),
-    blankRow(),
-  ],
-  w1: [
-    workRow('9:00:00', '18:00:00'), workRow('9:00:00', '18:00:00'), workRow('9:00:00', '18:00:00'),
-    workRow('9:00:00', '18:00:00'), workRow('9:00:00', '18:00:00'), blankRow(), blankRow(),
-  ],
+const blankRow = () => ({
+  vacation: '', start: '', end: '', sys: '', personal: '', requested: '', breakfast: false, dinner: false,
 });
+// 초기화 기본값: 평일은 9:00~18:00(체류 9시간), 주말은 빈칸
+const DEFAULT_START = '9:00:00';
+const DEFAULT_END = '18:00:00';
+const defaultRow = (day) => (WEEKDAYS.includes(day) ? { ...blankRow(), start: DEFAULT_START, end: DEFAULT_END } : blankRow());
+const defaultData = () => Object.fromEntries(Object.entries(SHEETS).map(([key, cfg]) => [key, cfg.days.map(defaultRow)]));
+const sameRows = (a, b) => a.every((r, i) => [...TEXT_FIELDS, ...MEAL_FIELDS].every((f) => r[f] === b[i][f]));
+// 표가 기본값 그대로인지 기록한다. 기본값 그대로인 표는 다음에 열 때 최신 기본값으로 다시 채운다.
+function syncPristine() {
+  state.sample[state.sheet] = sameRows(state.data[state.sheet], defaultData()[state.sheet]);
+}
+// 0시부터의 초 → "h:mm:ss" (다음 날이면 앞에 '익일')
+function clockText(totalSeconds) {
+  const s = totalSeconds % 86400;
+  const time = `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  return totalSeconds >= 86400 ? `익일 ${time}` : time;
+}
+
+// 저장된 줄을 현재 형식으로 맞춘다. 예전 공휴일/휴무 "O"는 근태 '휴일'로 옮긴다.
+function migrateRow(r) {
+  const row = blankRow();
+  for (const f of TEXT_FIELDS) row[f] = r[f];
+  for (const f of MEAL_FIELDS) row[f] = r[f] === true;
+  if (row.vacation === '' && String(r.holiday ?? '').toUpperCase() === 'O') row.vacation = '휴일';
+  return row;
+}
 
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY));
     if (!saved || !saved.data) return null;
+    const fresh = defaultData();
+    const data = {};
+    const sample = {};
     for (const key of Object.keys(SHEETS)) {
       const rows = saved.data[key];
       if (!Array.isArray(rows) || rows.length !== SHEETS[key].days.length) return null;
-      if (!rows.every((r) => r && FIELDS.every((f) => typeof r[f] === 'string'))) return null;
+      if (!rows.every((r) => r && TEXT_FIELDS.every((f) => typeof r[f] === 'string'))) return null;
+      sample[key] = !!saved.sample?.[key];
+      // 기본값(또는 이전 예시값) 그대로인 표는 최신 기본값으로 다시 채운다.
+      data[key] = sample[key] ? fresh[key] : rows.map(migrateRow);
     }
-    const sample = { w2: !!saved.sample?.w2, w1: !!saved.sample?.w1 };
-    // 예시값 상태로 남아 있는 표는 최신 예시값으로 다시 채운다.
-    const fresh = sampleData();
-    for (const key of Object.keys(SHEETS)) if (sample[key]) saved.data[key] = fresh[key];
-    return { sheet: SHEETS[saved.sheet] ? saved.sheet : 'w2', data: saved.data, sample };
+    return { sheet: SHEETS[saved.sheet] ? saved.sheet : 'w2', data, sample };
   } catch {
     return null;
   }
@@ -595,7 +743,7 @@ function saveState() {
   }
 }
 
-const state = loadState() ?? { sheet: 'w2', data: sampleData(), sample: { w2: true, w1: true } };
+const state = loadState() ?? { sheet: 'w2', data: defaultData(), sample: { w2: true, w1: true } };
 
 const $ = (id) => document.getElementById(id);
 const table = $('sheet');
@@ -605,58 +753,93 @@ let footer = {};
 function fieldId(i, f) {
   return `${state.sheet}-r${i}-${f}`;
 }
+function fillRow(i) {
+  const row = state.data[state.sheet][i];
+  for (const f of TEXT_FIELDS) $(fieldId(i, f)).value = row[f];
+  for (const f of MEAL_FIELDS) $(fieldId(i, f)).checked = row[f];
+}
+// 휴일·연차를 고르면 기본 출퇴근 시간을 비운다(직접 입력한 시간은 그대로).
+// 근태를 다시 비우면 빈 평일에 기본 시간을 다시 채운다.
+const DAY_OFF = ['휴일', '연차'];
+function applyAttendanceDefaults(i) {
+  const row = state.data[state.sheet][i];
+  if (DAY_OFF.includes(row.vacation) && row.start === DEFAULT_START && row.end === DEFAULT_END) {
+    row.start = '';
+    row.end = '';
+  } else if (row.vacation === '' && WEEKDAYS.includes(SHEETS[state.sheet].days[i]) && row.start === '' && row.end === '') {
+    row.start = DEFAULT_START;
+    row.end = DEFAULT_END;
+  }
+  fillRow(i);
+}
 function rowLabel(i) {
   const cfg = SHEETS[state.sheet];
   return (cfg.weeks ? (i < 7 ? '1주차 ' : '2주차 ') : '') + cfg.days[i] + '요일';
 }
 
+// 열 너비(px): 요일부터 초기화까지. 2주 단위는 맨 앞에 구간 열이 붙는다.
+const COL_WIDTHS = [48, 92, 104, 104, 116, 64, 64, 48, 48, 80, 84, 56, 64, 76];
+const WEEK_COL_WIDTH = 56;
+
 function renderTable() {
   const cfg = SHEETS[state.sheet];
-  table.classList.toggle('no-week', !cfg.weeks);
+  const widths = cfg.weeks ? [WEEK_COL_WIDTH, ...COL_WIDTHS] : COL_WIDTHS;
+  table.style.setProperty('--table-min', `${widths.reduce((a, b) => a + b, 0)}px`);
+  table.style.setProperty('--week-w', cfg.weeks ? `${WEEK_COL_WIDTH}px` : '0px');
   $('panel').setAttribute('aria-labelledby', `tab-${state.sheet}`);
 
-  let html = '<thead><tr>';
+  let html = `<colgroup>${widths.map((w) => `<col style="width:${w}px">`).join('')}</colgroup><thead><tr>`;
   if (cfg.weeks) html += '<th rowspan="2" scope="col" class="c-week">구간</th>';
   html += '<th rowspan="2" scope="col" class="c-day">요일</th>'
-    + '<th rowspan="2" scope="col">공휴일/<br>휴무</th>'
-    + '<th rowspan="2" scope="col">연차</th>'
+    + '<th rowspan="2" scope="col">근태</th>'
     + '<th rowspan="2" scope="col">출근 시간</th>'
     + '<th rowspan="2" scope="col">퇴근 시간</th>'
-    + '<th colspan="2" scope="colgroup">비업무</th>'
-    + '<th rowspan="2" scope="col">잔특근<br>신청 시간(분)</th>'
+    + '<th rowspan="2" scope="col" class="h-honey">꿀근무<br>퇴근</th>'
+    + '<th colspan="2" scope="colgroup">비업무(분)</th>'
+    + '<th colspan="2" scope="colgroup">식사 −30분</th>'
+    + '<th rowspan="2" scope="col">잔특근<br>신청(분)</th>'
     + '<th rowspan="2" scope="col">확정<br>근무 시간</th>'
-    + '<th colspan="2" scope="colgroup">잔특근 인정 시간</th>'
-    + '</tr><tr><th scope="col">시스템(분)</th><th scope="col">개인(분)</th><th scope="col">분</th><th scope="col">시간</th></tr></thead><tbody>';
+    + '<th colspan="2" scope="colgroup">잔특근 인정</th>'
+    + '<th rowspan="2" scope="col"><span class="sr">요일별 초기화</span></th>'
+    + '</tr><tr><th scope="col">시스템</th><th scope="col">개인</th><th scope="col">조식</th><th scope="col">석식</th><th scope="col">분</th><th scope="col">시간</th></tr></thead><tbody>';
 
   cfg.days.forEach((day, i) => {
     const wk = cfg.weeks ? (i < 7 ? 'wk1' : 'wk2') : 'wk0';
+    const week = cfg.weeks ? (i < 7 ? '1주차' : '2주차') : '';
     const label = rowLabel(i);
     html += `<tr data-row="${i}"${cfg.weeks && i === 7 ? ' class="week-start"' : ''}>`;
-    if (cfg.weeks && i % 7 === 0) {
-      html += `<th rowspan="7" scope="rowgroup" class="c-week ${wk}">${i < 7 ? '1주차' : '2주차'}</th>`;
-    }
+    if (cfg.weeks && i % 7 === 0) html += `<th rowspan="7" scope="rowgroup" class="c-week ${wk}">${week}</th>`;
     const dayClass = day === '토' ? ' sat' : day === '일' ? ' sun' : '';
-    html += `<th scope="row" class="c-day ${wk}${dayClass}">${day}</th>`
-      + `<td class="in"><select id="${fieldId(i, 'holiday')}" data-f="holiday" aria-label="${label} 공휴일/휴무"><option value=""></option><option>O</option><option>X</option></select></td>`
-      + `<td class="in"><select id="${fieldId(i, 'vacation')}" data-f="vacation" aria-label="${label} 연차"><option value=""></option><option>연차</option><option>반차</option><option>반반차</option></select></td>`
-      + `<td class="in"><input class="time" id="${fieldId(i, 'start')}" data-f="start" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 출근 시간"></td>`
-      + `<td class="in"><input class="time" id="${fieldId(i, 'end')}" data-f="end" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 퇴근 시간"></td>`
-      + `<td class="in"><input class="num" id="${fieldId(i, 'sys')}" data-f="sys" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 시스템(분)"></td>`
-      + `<td class="in"><input class="num" id="${fieldId(i, 'personal')}" data-f="personal" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 개인(분)"></td>`
-      + `<td class="in"><input class="num" id="${fieldId(i, 'requested')}" data-f="requested" inputmode="numeric" autocomplete="off" aria-label="${label} 잔특근 신청 시간(분)"></td>`
-      + '<td class="out" data-o="work"></td><td class="out" data-o="overtime"></td><td class="out" data-o="overtimeText"></td>'
+    html += `<th scope="row" class="c-day k-day ${wk}${dayClass}">`
+      + (week ? `<span class="wk-tag ${wk}">${week}</span>` : '')
+      + `<span>${day}<span class="day-suffix">요일</span></span></th>`
+      + `<td class="in k-att" data-label="근태"><select id="${fieldId(i, 'vacation')}" data-f="vacation" aria-label="${label} 근태"><option value=""></option><option>연차</option><option>반차</option><option>반반차</option><option>휴일</option></select></td>`
+      + `<td class="in k-start" data-label="출근"><input class="time" id="${fieldId(i, 'start')}" data-f="start" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 출근 시간"></td>`
+      + `<td class="in k-end" data-label="퇴근"><input class="time" id="${fieldId(i, 'end')}" data-f="end" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 퇴근 시간"></td>`
+      + '<td class="honey k-honey" data-label="꿀근무 퇴근" data-o="honey"></td>'
+      + `<td class="in k-sys" data-label="비업무 시스템(분)"><input class="num" id="${fieldId(i, 'sys')}" data-f="sys" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 시스템(분)"></td>`
+      + `<td class="in k-per" data-label="비업무 개인(분)"><input class="num" id="${fieldId(i, 'personal')}" data-f="personal" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 개인(분)"></td>`
+      + `<td class="in check k-bf" data-label="조식 −30분"><input type="checkbox" id="${fieldId(i, 'breakfast')}" data-f="breakfast" aria-label="${label} 조식"></td>`
+      + `<td class="in check k-dn" data-label="석식 −30분"><input type="checkbox" id="${fieldId(i, 'dinner')}" data-f="dinner" aria-label="${label} 석식"></td>`
+      + `<td class="in k-req" data-label="잔특근 신청(분)"><input class="num" id="${fieldId(i, 'requested')}" data-f="requested" inputmode="numeric" autocomplete="off" aria-label="${label} 잔특근 신청 시간(분)"></td>`
+      + '<td class="out k-work" data-label="확정 근무" data-o="work"></td>'
+      + '<td class="out k-ot" data-label="인정(분)" data-o="overtime"></td>'
+      + '<td class="out k-ott" data-label="인정 시간" data-o="overtimeText"></td>'
+      + `<td class="k-reset"><button type="button" class="row-reset" aria-label="${label} 초기화">초기화</button></td>`
       + '</tr>';
   });
 
-  html += `</tbody><tfoot><tr><th scope="row" colspan="${cfg.weeks ? 8 : 7}">누적 시간</th>`
-    + '<td data-t="requested"></td><td data-t="work"></td><td data-t="overtime"></td><td data-t="overtimeText"></td></tr></tfoot>';
+  html += `</tbody><tfoot><tr><th scope="row" colspan="${cfg.weeks ? 10 : 9}">누적 시간</th>`
+    + '<td class="k-f1" data-label="잔특근 신청 합계" data-t="requested"></td>'
+    + '<td class="k-f2" data-label="확정 근무 합계" data-t="work"></td>'
+    + '<td class="k-f3" data-label="잔특근 인정 합계" data-t="overtime"></td>'
+    + '<td class="k-f4" data-label="잔특근 인정 시간 합계" data-t="overtimeText"></td>'
+    + '<td></td></tr></tfoot>';
   table.innerHTML = html;
 
-  const rows = state.data[state.sheet];
-  rows.forEach((row, i) => {
-    for (const f of FIELDS) $(fieldId(i, f)).value = row[f];
-  });
+  cfg.days.forEach((_, i) => fillRow(i));
   outputs = [...table.tBodies[0].rows].map((tr) => ({
+    honey: tr.querySelector('[data-o="honey"]'),
     work: tr.querySelector('[data-o="work"]'),
     overtime: tr.querySelector('[data-o="overtime"]'),
     overtimeText: tr.querySelector('[data-o="overtimeText"]'),
@@ -669,37 +852,60 @@ function display(el, v) {
   el.textContent = text;
   el.classList.toggle('err', isErr(v));
   el.classList.toggle('zero', text === '00:00' || text === '0');
-  el.title = isErr(v) ? '계산할 수 없는 입력값이 있습니다. 시간은 hh:mm:ss, 분은 숫자로 입력하세요.' : '';
+  el.title = isErr(v) ? '계산할 수 없는 입력값이 있습니다. 표 아래 안내를 확인하세요.' : '';
+}
+// 꿀근무 퇴근: 다음 날이면 '익일'을 작게 붙인다.
+function showHoney(el, seconds) {
+  el.replaceChildren();
+  if (seconds === null) return;
+  if (seconds >= 86400) el.append(Object.assign(document.createElement('small'), { textContent: '익일' }));
+  el.append(clockText(seconds % 86400));
 }
 
-function markValidity() {
+const TIME_INPUTS = [['start', '출근 시간'], ['end', '퇴근 시간']];
+const NUMBER_INPUTS = [['sys', '비업무 시스템'], ['personal', '비업무 개인'], ['requested', '잔특근 신청 시간']];
+// 잘못된 입력 칸을 표시하고, 표 아래에 이유를 모아 보여 준다.
+function markValidity(res) {
+  const messages = [];
+  const flag = (i, f, name, message) => {
+    const el = $(fieldId(i, f));
+    el.setAttribute('aria-invalid', String(!!message));
+    el.title = message ?? '';
+    if (message) messages.push(`${rowLabel(i)} ${name}: ${message}`);
+  };
   state.data[state.sheet].forEach((row, i) => {
-    for (const f of ['start', 'end']) {
-      const bad = row[f].trim() !== '' && parseTimeText(row[f]) === null;
-      $(fieldId(i, f)).setAttribute('aria-invalid', String(bad));
+    for (const [f, name] of TIME_INPUTS) {
+      const text = row[f].trim();
+      const formatError = text !== '' && parseTimeText(text) === null;
+      flag(i, f, name, formatError ? '"hh:mm:ss" 형식으로 입력하세요' : res.windowIssues[i][f]);
     }
-    for (const f of ['sys', 'personal', 'requested']) {
-      const bad = row[f].trim() !== '' && !NUM_RE.test(row[f].trim());
-      $(fieldId(i, f)).setAttribute('aria-invalid', String(bad));
+    for (const [f, name] of NUMBER_INPUTS) {
+      const text = row[f].trim();
+      flag(i, f, name, text !== '' && !NUM_RE.test(text) ? '숫자로 입력하세요' : undefined);
     }
   });
+  const list = $('issues');
+  list.replaceChildren(...messages.map((m) => Object.assign(document.createElement('li'), { textContent: m })));
+  list.hidden = messages.length === 0;
 }
 
 function recalc() {
   const cfg = SHEETS[state.sheet];
   const rows = state.data[state.sheet].map((raw, i) => ({
     day: cfg.days[i],
-    holiday: choiceToCell(raw.holiday),
     vacation: choiceToCell(raw.vacation),
     start: timeInputToCell(raw.start),
     end: timeInputToCell(raw.end),
     sys: numberInputToCell(raw.sys),
     personal: numberInputToCell(raw.personal),
     requested: numberInputToCell(raw.requested),
+    breakfast: raw.breakfast,
+    dinner: raw.dinner,
   }));
   const res = computeSheet(rows);
 
   outputs.forEach((o, i) => {
+    showHoney(o.honey, res.honey[i]);
     display(o.work, res.work[i]);
     display(o.overtime, res.overtime[i]);
     display(o.overtimeText, res.overtimeText[i]);
@@ -720,7 +926,7 @@ function recalc() {
   pill.hidden = !hasTime;
   pill.textContent = res.shortfallPositive === true ? '미충족' : '충족';
 
-  markValidity();
+  markValidity(res);
 }
 
 function updateChrome() {
@@ -730,7 +936,7 @@ function updateChrome() {
     btn.tabIndex = selected ? 0 : -1;
   }
   $('note').textContent = state.sample[state.sheet]
-    ? '가상의 예시값을 채워 두었습니다. 내 기록을 넣으려면 「표 비우기」를 누르세요.'
+    ? '기본값(평일 9:00~18:00, 체류 9시간)으로 채워 두었습니다. 입력값은 이 브라우저에 자동 저장됩니다.'
     : '입력값은 이 브라우저에 자동 저장됩니다.';
 }
 
@@ -749,8 +955,9 @@ table.addEventListener('input', (e) => {
   const f = el.dataset.f;
   if (!f) return;
   const i = Number(el.closest('tr').dataset.row);
-  state.data[state.sheet][i][f] = el.value;
-  state.sample[state.sheet] = false;
+  state.data[state.sheet][i][f] = el.type === 'checkbox' ? el.checked : el.value;
+  if (f === 'vacation') applyAttendanceDefaults(i);
+  syncPristine();
   saveState();
   recalc();
   updateChrome();
@@ -761,17 +968,18 @@ table.addEventListener('focusout', (e) => {
   if (!el.classList?.contains('time')) return;
   const t = parseTimeText(el.value);
   if (t === null) return;
-  const sec = Math.round(t * 86400);
-  const text = `${Math.floor(sec / 3600)}:${String(Math.floor(sec / 60) % 60).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+  const text = clockText(Math.round(t * 86400));
   if (text === el.value) return;
   el.value = text;
   state.data[state.sheet][Number(el.closest('tr').dataset.row)][el.dataset.f] = text;
+  syncPristine();
   saveState();
+  updateChrome();
 });
 // Enter / ↓ / ↑ 로 같은 열의 위아래 칸으로 이동
 table.addEventListener('keydown', (e) => {
   const el = e.target;
-  if (el.tagName !== 'INPUT' || e.isComposing) return;
+  if (el.tagName !== 'INPUT' || el.type === 'checkbox' || e.isComposing) return;
   const step = e.key === 'Enter' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
   if (!step) return;
   const next = $(fieldId(Number(el.closest('tr').dataset.row) + step, el.dataset.f));
@@ -793,7 +1001,7 @@ for (const btn of tabs) {
   });
 }
 
-// 비우기 / 예시값 — 확인 단계는 페이지 안에서 처리한다.
+// 전체 초기화 — 확인 단계는 페이지 안에서 처리한다.
 let pending = null;
 function askConfirm(message, actionLabel, action) {
   pending = action;
@@ -815,25 +1023,38 @@ $('confirmYes').addEventListener('click', () => {
 });
 $('confirmNo').addEventListener('click', closeConfirm);
 
-const sheetIsEmpty = () => state.data[state.sheet].every((r) => FIELDS.every((f) => r[f].trim() === ''));
-function replaceSheet(rows, isSample) {
-  state.data[state.sheet] = rows;
-  state.sample[state.sheet] = isSample;
-  saveState();
-  renderTable();
-  recalc();
-  updateChrome();
-}
-$('btnClear').addEventListener('click', () => {
-  if (sheetIsEmpty()) return;
-  askConfirm('이 표의 입력값을 모두 지울까요?', '지우기', () => {
-    replaceSheet(SHEETS[state.sheet].days.map(blankRow), false);
+$('btnResetAll').addEventListener('click', () => {
+  if (state.sample[state.sheet]) return;
+  askConfirm('이 표를 모두 기본값으로 초기화할까요?', '초기화', () => {
+    state.data[state.sheet] = defaultData()[state.sheet];
+    syncPristine();
+    saveState();
+    renderTable();
+    recalc();
+    updateChrome();
   });
 });
-$('btnSample').addEventListener('click', () => {
-  const apply = () => replaceSheet(sampleData()[state.sheet], true);
-  if (sheetIsEmpty() || state.sample[state.sheet]) apply();
-  else askConfirm('지금 입력값을 예시값으로 바꿀까요?', '바꾸기', apply);
+
+// 식사 칸은 체크박스 주변을 눌러도 토글된다.
+table.addEventListener('click', (e) => {
+  const cell = e.target.closest('td.check');
+  if (!cell || e.target.tagName === 'INPUT') return;
+  const box = cell.querySelector('input');
+  box.checked = !box.checked;
+  box.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+// 요일별 초기화
+table.addEventListener('click', (e) => {
+  const btn = e.target.closest('.row-reset');
+  if (!btn) return;
+  const i = Number(btn.closest('tr').dataset.row);
+  state.data[state.sheet][i] = defaultRow(SHEETS[state.sheet].days[i]);
+  fillRow(i);
+  syncPristine();
+  saveState();
+  recalc();
+  updateChrome();
 });
 
 renderTable();
