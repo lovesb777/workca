@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>근무시간 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: 출퇴근 기록지 — 위에 요약 3칸, 가운데 엑셀과 같은 열 구성의 기록표, 아래에 입력 안내 */
+:root {
+  --bg: #F2F4F5;
+  --surface: #FFFFFF;
+  --ink: #17222B;
+  --muted: #5A6772;
+  --line: #D3DADF;
+  --line-soft: #E6EBEE;
+  --head: #E8ECEF;
+  --field: #F7F9FA;
+  --field-focus: #FFFFFF;
+  --accent: #1E5D78;
+  --accent-ink: #FFFFFF;
+  --wk1: #E1EFDA;
+  --wk1-ink: #2C5A1B;
+  --wk2: #D9ECF6;
+  --wk2-ink: #0D5574;
+  --sat: #0070C0;
+  --sun: #D41919;
+  --bad-bg: #FFC7CE;
+  --bad-fg: #9C0006;
+  --good-bg: #C6EFCE;
+  --good-fg: #006100;
+  --err: #C0262D;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101519; --surface: #171F25; --ink: #E3E9ED; --muted: #94A2AD; --line: #2D3942; --line-soft: #222C34;
+    --head: #1E2830; --field: #1C252C; --field-focus: #222D35; --accent: #73B6D4; --accent-ink: #0A1A22;
+    --wk1: #20311A; --wk1-ink: #A8D698; --wk2: #142E3D; --wk2-ink: #8ECBEA; --sat: #6FB4F2; --sun: #FF7B7B;
+    --bad-bg: #4A1C22; --bad-fg: #FFB4BD; --good-bg: #17391F; --good-fg: #A5E2B3; --err: #FF8A8F;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101519; --surface: #171F25; --ink: #E3E9ED; --muted: #94A2AD; --line: #2D3942; --line-soft: #222C34;
+  --head: #1E2830; --field: #1C252C; --field-focus: #222D35; --accent: #73B6D4; --accent-ink: #0A1A22;
+  --wk1: #20311A; --wk1-ink: #A8D698; --wk2: #142E3D; --wk2-ink: #8ECBEA; --sat: #6FB4F2; --sun: #FF7B7B;
+  --bad-bg: #4A1C22; --bad-fg: #FFB4BD; --good-bg: #17391F; --good-fg: #A5E2B3; --err: #FF8A8F;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 20px;
+}
+.page > * { min-width: 0; }
+
+/* 머리말 */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+h1 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.ver {
+  font-family: var(--font-num); font-size: 0.75rem; font-weight: 500; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; margin-left: 8px; vertical-align: 0.3em;
+}
+.sub { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+.tabs { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.tabs button {
+  font: inherit; font-size: 0.9rem; font-weight: 600; color: var(--muted);
+  background: transparent; border: 0; border-radius: 6px; padding: 6px 16px; cursor: pointer;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+
+/* 요약 */
+.summary {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+}
+.stat { display: grid; gap: 6px; align-content: start; padding: 16px 20px; border-left: 1px solid var(--line); }
+.stat:first-child { border-left: 0; }
+.stat .label { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
+.stat .label small { font-size: inherit; font-weight: 400; }
+.val-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.stat .val {
+  font-family: var(--font-num); font-size: 1.9rem; font-weight: 500; line-height: 1.15;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em; min-height: 1.15em;
+}
+.stat.bad { background: var(--bad-bg); }
+.stat.bad .label, .stat.bad .val { color: var(--bad-fg); }
+.stat.good { background: var(--good-bg); }
+.stat.good .label, .stat.good .val { color: var(--good-fg); }
+.pill { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.stat.bad .pill { color: var(--bad-fg); }
+.stat.good .pill { color: var(--good-fg); }
+.stat .val.err { color: var(--err); font-size: 1.4rem; }
+
+/* 도구 막대 */
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.note { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.actions, .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.confirm span { font-size: 0.85rem; font-weight: 500; }
+.btn {
+  font: inherit; font-size: 0.85rem; font-weight: 500; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.danger { background: var(--err); border-color: var(--err); color: var(--surface); }
+
+/* 기록표 */
+.sheet-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table.sheet { width: 100%; min-width: 960px; border-collapse: separate; border-spacing: 0; font-size: 0.92rem; }
+.sheet th, .sheet td {
+  height: 40px; padding: 0; text-align: center; vertical-align: middle; background: var(--surface);
+  border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
+}
+.sheet tr > :last-child { border-right: 0; }
+.sheet thead th {
+  height: auto; padding: 7px 8px; background: var(--head); font-size: 0.8rem; font-weight: 600; line-height: 1.3;
+  border-bottom-color: var(--line);
+}
+.sheet .c-week { position: sticky; left: 0; z-index: 2; width: 64px; min-width: 64px; font-size: 0.82rem; font-weight: 600; }
+.sheet .c-day { position: sticky; left: 64px; z-index: 2; width: 52px; min-width: 52px; font-weight: 600; }
+.sheet.no-week .c-day { left: 0; }
+.sheet .c-day { border-right-color: var(--line); }
+.sheet .wk0 { background: var(--head); }
+.sheet .wk1 { background: var(--wk1); color: var(--wk1-ink); }
+.sheet .wk2 { background: var(--wk2); color: var(--wk2-ink); }
+.sheet .c-day.sat { color: var(--sat); }
+.sheet .c-day.sun { color: var(--sun); }
+.sheet tr.week-start > * { border-top: 2px solid var(--line); }
+.sheet td.in { background: var(--field); }
+.sheet input, .sheet select {
+  display: block; width: 100%; height: 40px; margin: 0; padding: 0 6px;
+  font: inherit; color: inherit; text-align: center; text-align-last: center;
+  background: transparent; border: 0; border-radius: 0;
+}
+.sheet select { cursor: pointer; }
+.sheet input:focus, .sheet select:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--field-focus); }
+.sheet input.time, .sheet input.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.sheet input::placeholder { color: var(--muted); opacity: 0.45; }
+.sheet input[aria-invalid="true"] { color: var(--err); box-shadow: inset 0 0 0 1.5px var(--err); }
+.sheet td.out { padding: 0 8px; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.sheet td.out.zero { color: var(--muted); }
+.sheet .err { color: var(--err); font-weight: 600; }
+.sheet tfoot th, .sheet tfoot td { background: var(--head); font-weight: 600; border-top: 1px solid var(--line); border-bottom: 0; }
+.sheet tfoot th { position: sticky; left: 0; z-index: 2; }
+.sheet tfoot td { font-family: var(--font-num); font-variant-numeric: tabular-nums; padding: 0 8px; }
+
+/* 안내 */
+.guide { display: grid; gap: 8px; }
+.guide h2 { margin: 0; font-size: 0.95rem; font-weight: 600; }
+.guide ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; color: var(--muted); font-size: 0.88rem; }
+.guide b { color: var(--ink); font-weight: 600; }
+.source { margin: 0; font-size: 0.8rem; color: var(--muted); }
+.source code { font-family: var(--font-num); font-size: 0.95em; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  h1 { font-size: 1.35rem; }
+  .summary { grid-template-columns: 1fr; }
+  .stat { grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-left: 0; border-top: 1px solid var(--line); padding: 12px 16px; }
+  .stat:first-child { border-top: 0; }
+  .stat .val { font-size: 1.4rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .tabs button, .stat { transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <div>
+      <h1>근무시간 계산기<span class="ver">v3.0</span></h1>
+      <p class="sub">출퇴근 시간을 입력하면 확정 근무 시간과 잔특근 인정 시간을 계산합니다.</p>
+    </div>
+    <div class="tabs" role="tablist" aria-label="계산 단위">
+      <button type="button" role="tab" id="tab-w2" data-sheet="w2" aria-controls="panel">2주 단위</button>
+      <button type="button" role="tab" id="tab-w1" data-sheet="w1" aria-controls="panel">1주 단위</button>
+    </div>
+  </header>
+
+  <section class="summary" aria-label="요약" aria-live="polite">
+    <div class="stat">
+      <span class="label">필수 근무 시간</span>
+      <span class="val-row"><span class="val" id="sumRequired"></span></span>
+    </div>
+    <div class="stat">
+      <span class="label">누적 근무 시간 <small>(잔특근 제외)</small></span>
+      <span class="val-row"><span class="val" id="sumAccumulated"></span></span>
+    </div>
+    <div class="stat" id="shortStat">
+      <span class="label">미충족 근무 시간 <small>(잔특근 제외)</small></span>
+      <span class="val-row"><span class="val" id="sumShortfall"></span><span class="pill" id="shortPill" hidden></span></span>
+    </div>
+  </section>
+
+  <div class="bar">
+    <p class="note" id="note"></p>
+    <div class="actions" id="actions">
+      <button type="button" class="btn" id="btnSample">예시값 넣기</button>
+      <button type="button" class="btn" id="btnClear">표 비우기</button>
+    </div>
+    <div class="confirm" id="confirm" hidden>
+      <span id="confirmMsg"></span>
+      <button type="button" class="btn danger" id="confirmYes"></button>
+      <button type="button" class="btn" id="confirmNo">취소</button>
+    </div>
+  </div>
+
+  <div class="sheet-wrap" role="tabpanel" id="panel">
+    <table class="sheet" id="sheet"></table>
+  </div>
+
+  <section class="guide">
+    <h2>입력 안내</h2>
+    <ul>
+      <li><b>공휴일/휴무</b>: 공휴일이나 휴무 시 "O"를 선택하세요</li>
+      <li><b>연차</b>: 연차 / 반차 / 반반차 사용 시 선택하세요</li>
+      <li><b>출근 시간</b>: "hh:mm:ss" 형식으로 입력하세요</li>
+      <li><b>퇴근 시간</b>: "hh:mm:ss" 형식으로 입력하세요</li>
+      <li><b>비업무 시간</b>: 숫자로 분을 1분 단위로 입력하세요</li>
+      <li><b>잔특근 신청 시간</b>: 숫자로 분을 10분 단위로 입력하세요</li>
+    </ul>
+    <p class="source">계산 규칙은 <code>근무시간_계산기_v3.0.xlsm</code>의 VBA 함수를 그대로 옮겼습니다. 입력값은 이 브라우저에만 저장됩니다.</p>
+  </section>
+</div>
+
+<script>
+// ==== engine:start ====
+// 엑셀 VBA 사용자 정의 함수(WorkTime, OverTime, Sum, Subtract 모듈)를 그대로 옮긴 계산부.
+// 셀 값: null = 빈 셀, number = 숫자(시간은 하루 = 1인 일련값), string = 텍스트, VALUE_ERR = #VALUE!
+const VALUE_ERR = Object.freeze({ error: '#VALUE!' });
+const isErr = (v) => v === VALUE_ERR;
+class VbaError extends Error {}
+
+// VBA는 Double→Long 변환과 \, Mod 연산에서 은행원 반올림(.5는 짝수 쪽)을 쓴다.
+function vbRound(x) {
+  const f = Math.floor(x);
+  const d = x - f;
+  if (d > 0.5) return f + 1;
+  if (d < 0.5) return f;
+  return f % 2 === 0 ? f : f + 1;
+}
+function cLng(x) {
+  if (!Number.isFinite(x)) throw new VbaError();
+  const r = vbRound(x);
+  if (r > 2147483647 || r < -2147483648) throw new VbaError();
+  return r;
+}
+const NUM_RE = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+const TIME_RE = /^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/;
+const vbTrim = (s) => s.replace(/^ +| +$/g, '');
+const isNumericStr = (s) => NUM_RE.test(vbTrim(s));
+
+// "h:mm" 또는 "h:mm:ss" → 일련값. 해석할 수 없으면 null
+function parseTimeText(s) {
+  const m = TIME_RE.exec(s.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mi = Number(m[2]);
+  const se = m[3] === undefined ? 0 : Number(m[3]);
+  if (h > 23 || mi > 59 || se > 59) return null;
+  return (h * 3600 + mi * 60 + se) / 86400;
+}
+
+// 셀 값을 VBA 매개변수 형식으로 바꾼다. 바꿀 수 없으면 엑셀은 #VALUE!를 낸다.
+function cStr(v) {
+  if (isErr(v)) throw new VbaError();
+  if (v === null) return '';
+  return typeof v === 'number' ? String(v) : v;
+}
+function cLngAny(v) {
+  if (isErr(v)) throw new VbaError();
+  if (v === null) return 0;
+  if (typeof v === 'number') return cLng(v);
+  if (isNumericStr(v)) return cLng(Number(vbTrim(v)));
+  throw new VbaError();
+}
+function cDate(v) {
+  if (isErr(v)) throw new VbaError();
+  if (v === null) return 0;
+  if (typeof v === 'number') return v;
+  const t = parseTimeText(v);
+  if (t === null) throw new VbaError();
+  return t;
+}
+// VBA Split("")은 빈 배열을 돌려준다.
+const vbSplit = (s, sep) => (s === '' ? [] : s.split(sep));
+function at(arr, i) {
+  if (i >= arr.length) throw new VbaError();
+  return arr[i];
+}
+// Format(n, "00") & ":" & Format(n, "00"), \ 는 0 쪽으로 버림, Mod 는 피제수 부호를 따른다.
+const fmt00 = (n) => (n < 0 ? '-' : '') + String(Math.abs(n)).padStart(2, '0');
+const hhmm = (minutes) => fmt00(Math.trunc(minutes / 60)) + ':' + fmt00(minutes % 60);
+
+function udf(fn) {
+  try {
+    return fn();
+  } catch (e) {
+    if (e instanceof VbaError) return VALUE_ERR;
+    throw e;
+  }
+}
+
+const WEEKEND = ['토', '토요일', 'SUN', 'SAT', '일', '일요일'];
+const WEEKDAYS = ['월', '화', '수', '목', '금'];
+
+// WorkTime.CalculateWorkTime — 확정 근무 시간
+function calculateWorkTime(dayCell, holidayCell, startCell, endCell, break1Cell, break2Cell) {
+  return udf(() => {
+    let dayOfWeek = cStr(dayCell);
+    const holidayFlag = cStr(holidayCell);
+    const startTime = cDate(startCell);
+    const endTime = cDate(endCell);
+    const break1 = cLngAny(break1Cell);
+    const break2 = cLngAny(break2Cell);
+
+    // 전체 체류 시간(분)
+    let totalMinutes;
+    if (endTime < startTime) totalMinutes = (endTime + 1 - startTime) * 24 * 60;
+    else totalMinutes = (endTime - startTime) * 24 * 60;
+
+    // 비업무시간 총합
+    const nonWorkMinutes = break1 + break2;
+    let remainingMinutes = totalMinutes;
+    let breakCount = 0;
+    let totalBreakMinutes = 0;
+
+    // 요일로 주말 판단 (토, 일 = 주말)
+    dayOfWeek = vbTrim(dayOfWeek.toUpperCase());
+    const isWeekend = WEEKEND.includes(dayOfWeek);
+
+    // 평일이고 공휴일이 아닐 때 휴게시간 차감
+    if (!isWeekend && holidayFlag.toUpperCase() !== 'O') {
+      while (remainingMinutes - totalBreakMinutes >= 240 * (breakCount + 1)) {
+        breakCount += 1;
+        totalBreakMinutes = breakCount * 30;
+      }
+    }
+
+    // 실제 근무시간 = 전체시간 - 휴게시간 총합 - 비업무시간
+    remainingMinutes = totalMinutes - totalBreakMinutes - nonWorkMinutes;
+    if (remainingMinutes < 0) remainingMinutes = 0;
+    return hhmm(cLng(remainingMinutes));
+  });
+}
+
+// OverTime.CalculateOvertime — 잔특근 인정 시간(분)
+function calculateOvertime(dayCell, holidayCell, requestedCell, workTimeCell) {
+  return udf(() => {
+    let dayOfWeek = cStr(dayCell);
+    const holidayFlag = cStr(holidayCell);
+    const requested = cLngAny(requestedCell);
+    const actual = cDate(workTimeCell);
+
+    // Date형 근무시간을 분으로 변환 (Hour * 60 + Minute)
+    const seconds = Math.round((actual - Math.floor(actual)) * 86400);
+    const totalActualMinutes = (Math.floor(seconds / 3600) % 24) * 60 + (Math.floor(seconds / 60) % 60);
+
+    dayOfWeek = vbTrim(dayOfWeek.toUpperCase());
+    let isWeekendOrHoliday = WEEKEND.includes(dayOfWeek);
+    if (holidayFlag.toUpperCase() === 'O') isWeekendOrHoliday = true;
+
+    let overtime;
+    if (isWeekendOrHoliday) {
+      // 주말 또는 공휴일: 신청 시간과 실제 근무 중 작은 값
+      overtime = totalActualMinutes >= requested ? requested : totalActualMinutes;
+    } else if (totalActualMinutes <= 8 * 60) {
+      // 8시간 이하 근무 시 잔업 불인정
+      overtime = 0;
+    } else {
+      const excess = totalActualMinutes - 8 * 60;
+      // 초과 시간이 1시간 미만이면 인정 안 됨
+      if (excess < 60) overtime = 0;
+      else overtime = totalActualMinutes >= 8 * 60 + requested ? requested : excess;
+    }
+
+    // 10분 단위로 내림 (10분 미만은 인정 안 함)
+    overtime = Math.floor(overtime / 10) * 10;
+    if (overtime < 10) overtime = 0;
+    return overtime;
+  });
+}
+
+// =TEXT(분/1440, "hh:mm")
+function textHHMM(cell) {
+  if (isErr(cell) || typeof cell === 'string') return VALUE_ERR;
+  const minutes = cell === null ? 0 : cell;
+  if (minutes < 0) return VALUE_ERR;
+  const seconds = Math.round((minutes / 1440) * 86400);
+  return String(Math.floor(seconds / 3600) % 24).padStart(2, '0') + ':' + String(Math.floor(seconds / 60) % 60).padStart(2, '0');
+}
+
+// Sum.SumWorkTime — "hh:mm" 문자열 합계
+function sumWorkTime(cells) {
+  return udf(() => {
+    let totalMinutes = 0;
+    for (const cell of cells) {
+      const s = cStr(cell);
+      if (vbTrim(s) !== '') {
+        const parts = vbSplit(s, ':');
+        if (parts.length - 1 === 1) totalMinutes += cLngAny(parts[0]) * 60 + cLngAny(parts[1]);
+      }
+    }
+    return hhmm(totalMinutes);
+  });
+}
+
+// Sum.SumOverTimeMin — 분 숫자 합계를 "hh:mm"으로
+function sumOvertimeMin(cells) {
+  return udf(() => {
+    let totalMinutes = 0;
+    for (const cell of cells) {
+      if (cell === null || isErr(cell)) continue;
+      if (typeof cell === 'number') totalMinutes += cLng(cell);
+      else if (isNumericStr(cell)) totalMinutes += cLng(Number(vbTrim(cell)));
+    }
+    return hhmm(totalMinutes);
+  });
+}
+
+// WorkTime.CalculateRequiredWorkTime — 필수 근무 시간
+function calculateRequiredWorkTime(dayCells, holidayCells, vacationCells) {
+  return udf(() => {
+    if (dayCells.length !== holidayCells.length || dayCells.length !== vacationCells.length) {
+      return '오류: 범위 길이 불일치';
+    }
+    let totalMinutes = 0;
+    for (let i = 0; i < dayCells.length; i++) {
+      const dayVal = vbTrim(cStr(dayCells[i]));
+      const holiVal = vbTrim(cStr(holidayCells[i])).toUpperCase();
+      const vacVal = vbTrim(cStr(vacationCells[i]));
+      if (WEEKDAYS.includes(dayVal) && holiVal !== 'O') {
+        if (vacVal === '연차') totalMinutes += 0;
+        else if (vacVal === '반차') totalMinutes += 4 * 60;
+        else if (vacVal === '반반차') totalMinutes += 6 * 60;
+        else totalMinutes += 8 * 60;
+      }
+    }
+    return hhmm(totalMinutes);
+  });
+}
+
+// Subtract.SubtractTime — 0 미만은 0, 본문 오류는 빈 문자열
+function subtractTime(a, b) {
+  if (isErr(a) || isErr(b)) return VALUE_ERR;
+  const s1 = cStr(a);
+  const s2 = cStr(b);
+  try {
+    const h1 = cLngAny(at(vbSplit(s1, ':'), 0));
+    const m1 = cLngAny(at(vbSplit(s1, ':'), 1));
+    const h2 = cLngAny(at(vbSplit(s2, ':'), 0));
+    const m2 = cLngAny(at(vbSplit(s2, ':'), 1));
+    let diffMin = h1 * 60 + m1 - (h2 * 60 + m2);
+    if (diffMin < 0) diffMin = 0;
+    return hhmm(diffMin);
+  } catch (e) {
+    if (e instanceof VbaError) return '';
+    throw e;
+  }
+}
+
+// Subtract.IsPositiveTime — 조건부 서식 판정. 오류면 어느 서식도 적용되지 않는다.
+function isPositiveTime(cell) {
+  if (isErr(cell)) return VALUE_ERR;
+  try {
+    const parts = vbSplit(cStr(cell), ':');
+    if (parts.length - 1 !== 1) return false;
+    return cLngAny(parts[0]) * 60 + cLngAny(parts[1]) > 0;
+  } catch (e) {
+    if (e instanceof VbaError) return false;
+    throw e;
+  }
+}
+
+// 시트 하나를 다시 계산한다. rows: [{ day, holiday, vacation, start, end, sys, personal, requested }] (셀 값)
+function computeSheet(rows) {
+  const work = rows.map((r) => calculateWorkTime(r.day, r.holiday, r.start, r.end, r.sys, r.personal));
+  const overtime = rows.map((r, i) => calculateOvertime(r.day, r.holiday, r.requested, work[i]));
+  const overtimeText = overtime.map(textHHMM);
+  const totals = {
+    requested: sumOvertimeMin(rows.map((r) => r.requested)),
+    work: sumWorkTime(work),
+    overtime: sumOvertimeMin(overtime),
+    overtimeText: sumWorkTime(overtimeText),
+  };
+  const required = calculateRequiredWorkTime(
+    rows.map((r) => r.day),
+    rows.map((r) => r.holiday),
+    rows.map((r) => r.vacation),
+  );
+  const accumulated = subtractTime(totals.work, totals.overtime);
+  const shortfall = subtractTime(required, accumulated);
+  return { work, overtime, overtimeText, totals, required, accumulated, shortfall, shortfallPositive: isPositiveTime(shortfall) };
+}
+
+// 입력 문자열 → 셀 값 (엑셀이 셀 입력을 해석하는 방식)
+function timeInputToCell(text) {
+  const s = text.trim();
+  if (s === '') return null;
+  const t = parseTimeText(s);
+  return t === null ? s : t;
+}
+function numberInputToCell(text) {
+  const s = text.trim();
+  if (s === '') return null;
+  return NUM_RE.test(s) ? Number(s) : s;
+}
+const choiceToCell = (text) => (text === '' ? null : text);
+// ==== engine:end ====
+
+const FIELDS = ['holiday', 'vacation', 'start', 'end', 'sys', 'personal', 'requested'];
+const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+const SHEETS = {
+  w2: { days: [...DAYS, ...DAYS], weeks: true },
+  w1: { days: DAYS, weeks: false },
+};
+const STORE_KEY = 'worktime-calculator-v3';
+
+const blankRow = () => ({ holiday: '', vacation: '', start: '', end: '', sys: '', personal: '', requested: '' });
+const workRow = (start, end, extra) => ({ ...blankRow(), start, end, ...extra });
+// 처음 열었을 때 보여 줄 가상의 예시값
+const sampleData = () => ({
+  w2: [
+    workRow('9:00:00', '18:00:00'),
+    workRow('8:30:00', '20:00:00', { requested: '60' }),
+    workRow('9:00:00', '18:00:00', { sys: '10' }),
+    workRow('9:00:00', '18:00:00'),
+    workRow('9:00:00', '13:30:00', { vacation: '반차' }),
+    blankRow(),
+    blankRow(),
+    workRow('9:00:00', '18:00:00'),
+    workRow('9:00:00', '18:00:00', { personal: '15' }),
+    { ...blankRow(), holiday: 'O' },
+    workRow('8:00:00', '19:30:00', { requested: '90' }),
+    blankRow(),
+    workRow('10:00:00', '14:00:00', { requested: '240' }),
+    blankRow(),
+  ],
+  w1: [
+    workRow('9:00:00', '18:00:00'), workRow('9:00:00', '18:00:00'), workRow('9:00:00', '18:00:00'),
+    workRow('9:00:00', '18:00:00'), workRow('9:00:00', '18:00:00'), blankRow(), blankRow(),
+  ],
+});
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (!saved || !saved.data) return null;
+    for (const key of Object.keys(SHEETS)) {
+      const rows = saved.data[key];
+      if (!Array.isArray(rows) || rows.length !== SHEETS[key].days.length) return null;
+      if (!rows.every((r) => r && FIELDS.every((f) => typeof r[f] === 'string'))) return null;
+    }
+    const sample = { w2: !!saved.sample?.w2, w1: !!saved.sample?.w1 };
+    // 예시값 상태로 남아 있는 표는 최신 예시값으로 다시 채운다.
+    const fresh = sampleData();
+    for (const key of Object.keys(SHEETS)) if (sample[key]) saved.data[key] = fresh[key];
+    return { sheet: SHEETS[saved.sheet] ? saved.sheet : 'w2', data: saved.data, sample };
+  } catch {
+    return null;
+  }
+}
+function saveState() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  } catch {
+    // 저장소를 쓸 수 없어도 계산은 그대로 동작한다.
+  }
+}
+
+const state = loadState() ?? { sheet: 'w2', data: sampleData(), sample: { w2: true, w1: true } };
+
+const $ = (id) => document.getElementById(id);
+const table = $('sheet');
+let outputs = [];
+let footer = {};
+
+function fieldId(i, f) {
+  return `${state.sheet}-r${i}-${f}`;
+}
+function rowLabel(i) {
+  const cfg = SHEETS[state.sheet];
+  return (cfg.weeks ? (i < 7 ? '1주차 ' : '2주차 ') : '') + cfg.days[i] + '요일';
+}
+
+function renderTable() {
+  const cfg = SHEETS[state.sheet];
+  table.classList.toggle('no-week', !cfg.weeks);
+  $('panel').setAttribute('aria-labelledby', `tab-${state.sheet}`);
+
+  let html = '<thead><tr>';
+  if (cfg.weeks) html += '<th rowspan="2" scope="col" class="c-week">구간</th>';
+  html += '<th rowspan="2" scope="col" class="c-day">요일</th>'
+    + '<th rowspan="2" scope="col">공휴일/<br>휴무</th>'
+    + '<th rowspan="2" scope="col">연차</th>'
+    + '<th rowspan="2" scope="col">출근 시간</th>'
+    + '<th rowspan="2" scope="col">퇴근 시간</th>'
+    + '<th colspan="2" scope="colgroup">비업무</th>'
+    + '<th rowspan="2" scope="col">잔특근<br>신청 시간(분)</th>'
+    + '<th rowspan="2" scope="col">확정<br>근무 시간</th>'
+    + '<th colspan="2" scope="colgroup">잔특근 인정 시간</th>'
+    + '</tr><tr><th scope="col">시스템(분)</th><th scope="col">개인(분)</th><th scope="col">분</th><th scope="col">시간</th></tr></thead><tbody>';
+
+  cfg.days.forEach((day, i) => {
+    const wk = cfg.weeks ? (i < 7 ? 'wk1' : 'wk2') : 'wk0';
+    const label = rowLabel(i);
+    html += `<tr data-row="${i}"${cfg.weeks && i === 7 ? ' class="week-start"' : ''}>`;
+    if (cfg.weeks && i % 7 === 0) {
+      html += `<th rowspan="7" scope="rowgroup" class="c-week ${wk}">${i < 7 ? '1주차' : '2주차'}</th>`;
+    }
+    const dayClass = day === '토' ? ' sat' : day === '일' ? ' sun' : '';
+    html += `<th scope="row" class="c-day ${wk}${dayClass}">${day}</th>`
+      + `<td class="in"><select id="${fieldId(i, 'holiday')}" data-f="holiday" aria-label="${label} 공휴일/휴무"><option value=""></option><option>O</option><option>X</option></select></td>`
+      + `<td class="in"><select id="${fieldId(i, 'vacation')}" data-f="vacation" aria-label="${label} 연차"><option value=""></option><option>연차</option><option>반차</option><option>반반차</option></select></td>`
+      + `<td class="in"><input class="time" id="${fieldId(i, 'start')}" data-f="start" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 출근 시간"></td>`
+      + `<td class="in"><input class="time" id="${fieldId(i, 'end')}" data-f="end" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 퇴근 시간"></td>`
+      + `<td class="in"><input class="num" id="${fieldId(i, 'sys')}" data-f="sys" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 시스템(분)"></td>`
+      + `<td class="in"><input class="num" id="${fieldId(i, 'personal')}" data-f="personal" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 개인(분)"></td>`
+      + `<td class="in"><input class="num" id="${fieldId(i, 'requested')}" data-f="requested" inputmode="numeric" autocomplete="off" aria-label="${label} 잔특근 신청 시간(분)"></td>`
+      + '<td class="out" data-o="work"></td><td class="out" data-o="overtime"></td><td class="out" data-o="overtimeText"></td>'
+      + '</tr>';
+  });
+
+  html += `</tbody><tfoot><tr><th scope="row" colspan="${cfg.weeks ? 8 : 7}">누적 시간</th>`
+    + '<td data-t="requested"></td><td data-t="work"></td><td data-t="overtime"></td><td data-t="overtimeText"></td></tr></tfoot>';
+  table.innerHTML = html;
+
+  const rows = state.data[state.sheet];
+  rows.forEach((row, i) => {
+    for (const f of FIELDS) $(fieldId(i, f)).value = row[f];
+  });
+  outputs = [...table.tBodies[0].rows].map((tr) => ({
+    work: tr.querySelector('[data-o="work"]'),
+    overtime: tr.querySelector('[data-o="overtime"]'),
+    overtimeText: tr.querySelector('[data-o="overtimeText"]'),
+  }));
+  footer = Object.fromEntries([...table.tFoot.querySelectorAll('[data-t]')].map((td) => [td.dataset.t, td]));
+}
+
+function display(el, v) {
+  const text = isErr(v) ? '#VALUE!' : v === null ? '' : String(v);
+  el.textContent = text;
+  el.classList.toggle('err', isErr(v));
+  el.classList.toggle('zero', text === '00:00' || text === '0');
+  el.title = isErr(v) ? '계산할 수 없는 입력값이 있습니다. 시간은 hh:mm:ss, 분은 숫자로 입력하세요.' : '';
+}
+
+function markValidity() {
+  state.data[state.sheet].forEach((row, i) => {
+    for (const f of ['start', 'end']) {
+      const bad = row[f].trim() !== '' && parseTimeText(row[f]) === null;
+      $(fieldId(i, f)).setAttribute('aria-invalid', String(bad));
+    }
+    for (const f of ['sys', 'personal', 'requested']) {
+      const bad = row[f].trim() !== '' && !NUM_RE.test(row[f].trim());
+      $(fieldId(i, f)).setAttribute('aria-invalid', String(bad));
+    }
+  });
+}
+
+function recalc() {
+  const cfg = SHEETS[state.sheet];
+  const rows = state.data[state.sheet].map((raw, i) => ({
+    day: cfg.days[i],
+    holiday: choiceToCell(raw.holiday),
+    vacation: choiceToCell(raw.vacation),
+    start: timeInputToCell(raw.start),
+    end: timeInputToCell(raw.end),
+    sys: numberInputToCell(raw.sys),
+    personal: numberInputToCell(raw.personal),
+    requested: numberInputToCell(raw.requested),
+  }));
+  const res = computeSheet(rows);
+
+  outputs.forEach((o, i) => {
+    display(o.work, res.work[i]);
+    display(o.overtime, res.overtime[i]);
+    display(o.overtimeText, res.overtimeText[i]);
+  });
+  for (const key of Object.keys(footer)) display(footer[key], res.totals[key]);
+
+  display($('sumRequired'), res.required);
+  display($('sumAccumulated'), res.accumulated);
+  display($('sumShortfall'), res.shortfall);
+  for (const id of ['sumRequired', 'sumAccumulated', 'sumShortfall']) $(id).classList.remove('zero');
+
+  // 엑셀 조건부 서식: IsPositiveTime이면 빨강, 아니면 초록, 수식 오류면 서식 없음
+  const stat = $('shortStat');
+  const pill = $('shortPill');
+  stat.classList.toggle('bad', res.shortfallPositive === true);
+  stat.classList.toggle('good', res.shortfallPositive === false);
+  const hasTime = typeof res.shortfall === 'string' && res.shortfall !== '';
+  pill.hidden = !hasTime;
+  pill.textContent = res.shortfallPositive === true ? '미충족' : '충족';
+
+  markValidity();
+}
+
+function updateChrome() {
+  for (const btn of document.querySelectorAll('[role="tab"]')) {
+    const selected = btn.dataset.sheet === state.sheet;
+    btn.setAttribute('aria-selected', String(selected));
+    btn.tabIndex = selected ? 0 : -1;
+  }
+  $('note').textContent = state.sample[state.sheet]
+    ? '가상의 예시값을 채워 두었습니다. 내 기록을 넣으려면 「표 비우기」를 누르세요.'
+    : '입력값은 이 브라우저에 자동 저장됩니다.';
+}
+
+function showSheet(sheet) {
+  state.sheet = sheet;
+  saveState();
+  closeConfirm();
+  renderTable();
+  recalc();
+  updateChrome();
+}
+
+// 표 입력
+table.addEventListener('input', (e) => {
+  const el = e.target;
+  const f = el.dataset.f;
+  if (!f) return;
+  const i = Number(el.closest('tr').dataset.row);
+  state.data[state.sheet][i][f] = el.value;
+  state.sample[state.sheet] = false;
+  saveState();
+  recalc();
+  updateChrome();
+});
+// 시간은 엑셀 표시 형식(h:mm:ss)으로 맞춘다.
+table.addEventListener('focusout', (e) => {
+  const el = e.target;
+  if (!el.classList?.contains('time')) return;
+  const t = parseTimeText(el.value);
+  if (t === null) return;
+  const sec = Math.round(t * 86400);
+  const text = `${Math.floor(sec / 3600)}:${String(Math.floor(sec / 60) % 60).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+  if (text === el.value) return;
+  el.value = text;
+  state.data[state.sheet][Number(el.closest('tr').dataset.row)][el.dataset.f] = text;
+  saveState();
+});
+// Enter / ↓ / ↑ 로 같은 열의 위아래 칸으로 이동
+table.addEventListener('keydown', (e) => {
+  const el = e.target;
+  if (el.tagName !== 'INPUT' || e.isComposing) return;
+  const step = e.key === 'Enter' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+  if (!step) return;
+  const next = $(fieldId(Number(el.closest('tr').dataset.row) + step, el.dataset.f));
+  if (!next) return;
+  e.preventDefault();
+  next.focus();
+  next.select();
+});
+
+// 탭
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+for (const btn of tabs) {
+  btn.addEventListener('click', () => showSheet(btn.dataset.sheet));
+  btn.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const next = tabs[(tabs.indexOf(btn) + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    next.focus();
+    showSheet(next.dataset.sheet);
+  });
+}
+
+// 비우기 / 예시값 — 확인 단계는 페이지 안에서 처리한다.
+let pending = null;
+function askConfirm(message, actionLabel, action) {
+  pending = action;
+  $('confirmMsg').textContent = message;
+  $('confirmYes').textContent = actionLabel;
+  $('actions').hidden = true;
+  $('confirm').hidden = false;
+  $('confirmNo').focus();
+}
+function closeConfirm() {
+  pending = null;
+  $('confirm').hidden = true;
+  $('actions').hidden = false;
+}
+$('confirmYes').addEventListener('click', () => {
+  const action = pending;
+  closeConfirm();
+  action?.();
+});
+$('confirmNo').addEventListener('click', closeConfirm);
+
+const sheetIsEmpty = () => state.data[state.sheet].every((r) => FIELDS.every((f) => r[f].trim() === ''));
+function replaceSheet(rows, isSample) {
+  state.data[state.sheet] = rows;
+  state.sample[state.sheet] = isSample;
+  saveState();
+  renderTable();
+  recalc();
+  updateChrome();
+}
+$('btnClear').addEventListener('click', () => {
+  if (sheetIsEmpty()) return;
+  askConfirm('이 표의 입력값을 모두 지울까요?', '지우기', () => {
+    replaceSheet(SHEETS[state.sheet].days.map(blankRow), false);
+  });
+});
+$('btnSample').addEventListener('click', () => {
+  const apply = () => replaceSheet(sampleData()[state.sheet], true);
+  if (sheetIsEmpty() || state.sample[state.sheet]) apply();
+  else askConfirm('지금 입력값을 예시값으로 바꿀까요?', '바꾸기', apply);
+});
+
+renderTable();
+recalc();
+updateChrome();
+</script>
+</body>
+</html>
