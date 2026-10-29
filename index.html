@@ -119,7 +119,16 @@ h1 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; te
 
 /* 도구 막대 */
 .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
-.note { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.note { order: 3; flex-basis: 100%; margin: 0; font-size: 0.85rem; color: var(--muted); }
+.base-date { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 0.85rem; }
+.base-date label { font-weight: 600; }
+.base-date label small { font-size: inherit; font-weight: 400; color: var(--muted); }
+.base-date input {
+  font: inherit; font-family: var(--font-num); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px;
+}
+.base-date .range { font-family: var(--font-num); color: var(--muted); }
+.week-tabs { display: none; }
 .actions, .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .confirm span { font-size: 0.85rem; font-weight: 500; }
 .btn {
@@ -155,6 +164,8 @@ table.sheet {
 .sheet .c-day.sat { color: var(--sat); }
 .sheet .c-day.sun { color: var(--sun); }
 .wk-tag, .day-suffix { display: none; }
+.sheet .day-name { display: block; line-height: 1.2; }
+.sheet .day-date { display: block; font-family: var(--font-num); font-size: 0.7rem; font-weight: 500; line-height: 1.2; opacity: 0.8; }
 .sheet tr.week-start > * { border-top: 2px solid var(--line); }
 .sheet td.in { background: var(--field); }
 .sheet input, .sheet select {
@@ -171,9 +182,11 @@ table.sheet {
 .sheet td.out.zero { color: var(--muted); }
 .sheet td.honey {
   padding: 0 6px; background: var(--honey-bg); color: var(--honey-fg);
-  font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 500;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 500; font-size: 0.85rem;
 }
 .sheet td.honey small { font-family: var(--font-ui); font-size: 0.72rem; font-weight: 600; margin-right: 3px; }
+.sheet td.honey .sep { color: var(--muted); font-weight: 400; }
+.sheet td.honey .leave-time { color: var(--ink); }
 .sheet thead th.h-honey { color: var(--honey-fg); }
 .sheet td.check { cursor: pointer; }
 .sheet td.check input { width: 18px; height: 18px; margin: 0 auto; padding: 0; accent-color: var(--accent); cursor: pointer; }
@@ -265,6 +278,21 @@ table.sheet {
   .sheet .k-f2 { grid-area: f2; }
   .sheet .k-f3 { grid-area: f3; }
   .sheet .k-f4 { grid-area: f4; }
+  .sheet[data-week="1"] tbody tr.week-2,
+  .sheet[data-week="2"] tbody tr.week-1 { display: none; }
+  .sheet .k-day .day-date { color: var(--muted); font-size: 0.85rem; opacity: 1; }
+  .base-date input { font-size: 16px; }
+  .week-tabs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .week-tabs button {
+    font: inherit; font-size: 0.92rem; font-weight: 600; color: var(--muted);
+    background: transparent; border: 0; border-radius: 7px; padding: 8px 6px; cursor: pointer;
+  }
+  .week-tabs button small { display: block; font-family: var(--font-num); font-size: 0.72rem; font-weight: 500; }
+  .week-tabs button small:empty { display: none; }
+  .week-tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
 }
 
 /* 안내 */
@@ -324,6 +352,12 @@ table.sheet {
   </section>
 
   <div class="bar">
+    <div class="base-date">
+      <label for="baseDate">1주차 기준일 <small>(선택)</small></label>
+      <input type="date" id="baseDate">
+      <button type="button" class="btn" id="btnClearDate" hidden>날짜 지우기</button>
+      <span class="range" id="dateRange"></span>
+    </div>
     <p class="note" id="note"></p>
     <div class="actions" id="actions">
       <button type="button" class="btn" id="btnResetAll">전체 초기화</button>
@@ -333,6 +367,11 @@ table.sheet {
       <button type="button" class="btn danger" id="confirmYes"></button>
       <button type="button" class="btn" id="confirmNo">취소</button>
     </div>
+  </div>
+
+  <div class="week-tabs" id="weekTabs" role="tablist" aria-label="주차">
+    <button type="button" role="tab" id="weekTab1" data-week="1" aria-controls="panel">1주차<small></small></button>
+    <button type="button" role="tab" id="weekTab2" data-week="2" aria-controls="panel">2주차<small></small></button>
   </div>
 
   <div class="sheet-wrap" id="panel">
@@ -347,9 +386,11 @@ table.sheet {
       <li><b>출근 시간</b>: "hh:mm:ss" 형식으로 입력하세요. 6:00:00부터 출근할 수 있습니다</li>
       <li><b>퇴근 시간</b>: "hh:mm:ss" 형식으로 입력하세요. 출근보다 이른 시각은 다음 날로 계산하며, 다음 날 5:59:59까지 퇴근할 수 있습니다</li>
       <li><b>꿀근무 퇴근</b>: 출근 시간 + 8시간 29분입니다. 체류 8시간 30분부터 휴게 30분이 한 번 더 빠지므로, 이 시각까지 퇴근하면 휴게는 30분만 빠집니다</li>
+      <li><b>퇴근 가능</b>: 그날 확정 근무가 필수 시간(평일 8시간, 반차 4시간, 반반차 6시간)을 채우는 가장 이른 퇴근 시각입니다. 비업무·식사 시간을 넣으면 그만큼 늦어집니다</li>
       <li><b>비업무 시간</b>: 숫자로 분을 1분 단위로 입력하세요</li>
       <li><b>식사</b>: 조식·석식을 먹었으면 체크하세요. 한 끼에 30분씩 근무 시간에서 빠집니다</li>
       <li><b>잔특근 신청 시간</b>: 숫자로 분을 10분 단위로 입력하세요</li>
+      <li><b>1주차 기준일</b>: 선택 사항입니다. 날짜를 고르면 그 주 월요일부터 1주차로 보고 요일 옆에 날짜를 보여 줍니다. 비우면 요일만 보입니다</li>
       <li><b>초기화</b>: 줄 끝의 「초기화」는 그 요일만, 「전체 초기화」는 표 전체를 기본값(평일 9:00~18:00, 주말 빈칸)으로 되돌립니다</li>
     </ul>
     <p class="source">계산 규칙은 <code>근무시간_계산기_v3.0.xlsm</code>의 VBA 함수를 그대로 옮기고, 휴일·식사 차감·꿀근무·근무 가능 시간을 더했습니다. <span id="storageNote">입력값은 이 브라우저에만 저장됩니다.</span></p>
@@ -635,6 +676,27 @@ function honeyLeaveTime(day, holiday, vacation, start) {
 // (추가) 조식·석식은 한 끼에 30분씩 근무 시간에서 뺀다.
 const MEAL_MINUTES = 30;
 
+// (추가) 퇴근 가능: 그날 확정 근무가 필수 시간(평일 8시간, 반차 4시간, 반반차 6시간)을 채우는
+// 가장 이른 퇴근 시각. 비업무·식사 차감까지 그대로 반영하려고 확정 근무 계산을 1분씩 되풀이한다.
+// 반환값은 출근일 0시부터의 초. 연차·휴일·주말이거나 다음 날 5:59:59를 넘으면 null.
+const REQUIRED_BY_ATTENDANCE = { '': 480, '반차': 240, '반반차': 360 };
+function earliestLeaveTime(day, holiday, vacation, start, sys, personal, mealMinutes) {
+  if (typeof start !== 'number') return null;
+  if (!WEEKDAYS.includes(day) || String(holiday ?? '').toUpperCase() === 'O') return null;
+  const required = REQUIRED_BY_ATTENDANCE[vacation ?? ''];
+  if (required === undefined) return null;
+  const startSec = Math.round(start * 86400);
+  for (let stay = required; stay <= 24 * 60; stay++) {
+    const leave = startSec + stay * 60;
+    if (leave >= 86400 + DAY_START_SECONDS) return null;
+    const work = calculateWorkTime(day, holiday, start, (leave % 86400) / 86400, sys, personal, mealMinutes);
+    if (isErr(work)) return null;
+    const [h, m] = work.split(':').map(Number);
+    if (h * 60 + m >= required) return leave;
+  }
+  return null;
+}
+
 // 시트 하나를 다시 계산한다.
 // rows: [{ day, holiday, vacation, start, end, sys, personal, requested, breakfast, dinner }] (셀 값, 식사는 true/false)
 function computeSheet(rows) {
@@ -643,12 +705,11 @@ function computeSheet(rows) {
   const windowIssues = rows.map((r) => workWindowIssues(r.start, r.end));
   const starts = rows.map((r, i) => (windowIssues[i].start ? VALUE_ERR : r.start));
   const ends = rows.map((r, i) => (windowIssues[i].end ? VALUE_ERR : r.end));
-  const work = rows.map((r, i) => calculateWorkTime(
-    r.day, holidays[i], starts[i], ends[i], r.sys, r.personal,
-    MEAL_MINUTES * ((r.breakfast ? 1 : 0) + (r.dinner ? 1 : 0)),
-  ));
+  const meals = rows.map((r) => MEAL_MINUTES * ((r.breakfast ? 1 : 0) + (r.dinner ? 1 : 0)));
+  const work = rows.map((r, i) => calculateWorkTime(r.day, holidays[i], starts[i], ends[i], r.sys, r.personal, meals[i]));
   const overtime = rows.map((r, i) => calculateOvertime(r.day, holidays[i], r.requested, work[i]));
   const honey = rows.map((r, i) => honeyLeaveTime(r.day, holidays[i], r.vacation, starts[i]));
+  const leave = rows.map((r, i) => earliestLeaveTime(r.day, holidays[i], r.vacation, starts[i], r.sys, r.personal, meals[i]));
   const overtimeText = overtime.map(textHHMM);
   const totals = {
     requested: sumOvertimeMin(rows.map((r) => r.requested)),
@@ -660,7 +721,7 @@ function computeSheet(rows) {
   const accumulated = subtractTime(totals.work, totals.overtime);
   const shortfall = subtractTime(required, accumulated);
   return {
-    work, overtime, overtimeText, honey, windowIssues, totals, required, accumulated, shortfall,
+    work, overtime, overtimeText, honey, leave, windowIssues, totals, required, accumulated, shortfall,
     shortfallPositive: isPositiveTime(shortfall),
   };
 }
@@ -709,6 +770,35 @@ function clockText(totalSeconds) {
   return totalSeconds >= 86400 ? `익일 ${time}` : time;
 }
 
+// 1주차 기준일: 'YYYY-MM-DD'를 그 주 월요일로 맞추고, 각 요일의 날짜를 구한다.
+const pad2 = (n) => String(n).padStart(2, '0');
+const toYmd = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+const monthDay = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
+function parseYmd(text) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text ?? '');
+  if (!m) return null;
+  const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+function mondayOf(text) {
+  const date = parseYmd(text);
+  if (!date) return '';
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return toYmd(date);
+}
+function rowDates() {
+  const monday = parseYmd(state.baseDate);
+  if (!monday) return null;
+  return SHEETS[state.sheet].days.map((_, i) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
+}
+// 기준일이 있으면 오늘이 속한 주차, 없으면 1주차
+function currentWeek() {
+  const monday = parseYmd(state.baseDate);
+  if (!monday) return 1;
+  const days = Math.round((new Date().setHours(0, 0, 0, 0) - monday.getTime()) / 86400000);
+  return days >= 7 && days < 14 ? 2 : 1;
+}
+
 // 저장된 줄을 현재 형식으로 맞춘다. 예전 공휴일/휴무 "O"는 근태 '휴일'로 옮긴다.
 function migrateRow(r) {
   const row = blankRow();
@@ -737,6 +827,8 @@ function parseState(saved) {
       sheet: SHEETS[saved.sheet] ? saved.sheet : 'w2',
       data,
       sample,
+      // 1주차 기준일(월요일). 계정 기록에서는 data 안에 들어 있다.
+      baseDate: mondayOf(typeof saved.baseDate === 'string' ? saved.baseDate : saved.data?.baseDate),
       owner: typeof saved.owner === 'string' ? saved.owner : null, // 이 사본이 어느 계정 기록인지
       dirty: saved.dirty === true, // 계정에 아직 올리지 못한 변경이 있는지
     };
@@ -764,12 +856,13 @@ function saveState() {
   scheduleRemote();
 }
 
-const state = loadState() ?? { sheet: 'w2', data: defaultData(), sample: defaultSample(), owner: null, dirty: false };
+const state = loadState() ?? { sheet: 'w2', data: defaultData(), sample: defaultSample(), baseDate: '', owner: null, dirty: false };
 
 const $ = (id) => document.getElementById(id);
 const table = $('sheet');
 let outputs = [];
 let footer = {};
+let activeWeek = currentWeek(); // 모바일에서 보고 있는 주차
 
 function fieldId(i, f) {
   return `${state.sheet}-r${i}-${f}`;
@@ -799,7 +892,7 @@ function rowLabel(i) {
 }
 
 // 열 너비(px): 요일부터 초기화까지. 2주 단위는 맨 앞에 구간 열이 붙는다.
-const COL_WIDTHS = [48, 92, 104, 104, 116, 64, 64, 48, 48, 80, 84, 56, 64, 76];
+const COL_WIDTHS = [56, 92, 96, 96, 200, 64, 64, 48, 48, 80, 84, 56, 64, 76];
 const WEEK_COL_WIDTH = 56;
 
 function renderTable() {
@@ -814,7 +907,7 @@ function renderTable() {
     + '<th rowspan="2" scope="col">근태</th>'
     + '<th rowspan="2" scope="col">출근 시간</th>'
     + '<th rowspan="2" scope="col">퇴근 시간</th>'
-    + '<th rowspan="2" scope="col" class="h-honey">꿀근무<br>퇴근</th>'
+    + '<th rowspan="2" scope="col" class="h-honey">꿀근무 퇴근<br>/ 퇴근 가능</th>'
     + '<th colspan="2" scope="colgroup">비업무(분)</th>'
     + '<th colspan="2" scope="colgroup">식사 −30분</th>'
     + '<th rowspan="2" scope="col">잔특근<br>신청(분)</th>'
@@ -823,20 +916,24 @@ function renderTable() {
     + '<th rowspan="2" scope="col"><span class="sr">요일별 초기화</span></th>'
     + '</tr><tr><th scope="col">시스템</th><th scope="col">개인</th><th scope="col">조식</th><th scope="col">석식</th><th scope="col">분</th><th scope="col">시간</th></tr></thead><tbody>';
 
+  const dates = rowDates();
+  table.dataset.week = String(activeWeek);
   cfg.days.forEach((day, i) => {
     const wk = cfg.weeks ? (i < 7 ? 'wk1' : 'wk2') : 'wk0';
     const week = cfg.weeks ? (i < 7 ? '1주차' : '2주차') : '';
     const label = rowLabel(i);
-    html += `<tr data-row="${i}"${cfg.weeks && i === 7 ? ' class="week-start"' : ''}>`;
+    html += `<tr data-row="${i}" class="week-${i < 7 ? 1 : 2}${cfg.weeks && i === 7 ? ' week-start' : ''}">`;
     if (cfg.weeks && i % 7 === 0) html += `<th rowspan="7" scope="rowgroup" class="c-week ${wk}">${week}</th>`;
     const dayClass = day === '토' ? ' sat' : day === '일' ? ' sun' : '';
     html += `<th scope="row" class="c-day k-day ${wk}${dayClass}">`
       + (week ? `<span class="wk-tag ${wk}">${week}</span>` : '')
-      + `<span>${day}<span class="day-suffix">요일</span></span></th>`
+      + `<span class="day-name">${day}<span class="day-suffix">요일</span></span>`
+      + (dates ? `<small class="day-date">${monthDay(dates[i])}</small>` : '')
+      + '</th>'
       + `<td class="in k-att" data-label="근태"><select id="${fieldId(i, 'vacation')}" data-f="vacation" aria-label="${label} 근태"><option value=""></option><option>연차</option><option>반차</option><option>반반차</option><option>휴일</option></select></td>`
       + `<td class="in k-start" data-label="출근"><input class="time" id="${fieldId(i, 'start')}" data-f="start" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 출근 시간"></td>`
       + `<td class="in k-end" data-label="퇴근"><input class="time" id="${fieldId(i, 'end')}" data-f="end" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 퇴근 시간"></td>`
-      + '<td class="honey k-honey" data-label="꿀근무 퇴근" data-o="honey"></td>'
+      + '<td class="honey k-honey" data-label="꿀근무 / 퇴근 가능" data-o="honey" title="왼쪽: 꿀근무 퇴근(출근 + 8시간 29분) / 오른쪽: 퇴근 가능(필수 시간을 채우는 가장 이른 퇴근)"></td>'
       + `<td class="in k-sys" data-label="비업무 시스템(분)"><input class="num" id="${fieldId(i, 'sys')}" data-f="sys" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 시스템(분)"></td>`
       + `<td class="in k-per" data-label="비업무 개인(분)"><input class="num" id="${fieldId(i, 'personal')}" data-f="personal" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 개인(분)"></td>`
       + `<td class="in check k-bf" data-label="조식 −30분"><input type="checkbox" id="${fieldId(i, 'breakfast')}" data-f="breakfast" aria-label="${label} 조식"></td>`
@@ -874,12 +971,25 @@ function display(el, v) {
   el.classList.toggle('zero', text === '00:00' || text === '0');
   el.title = isErr(v) ? '계산할 수 없는 입력값이 있습니다. 표 아래 안내를 확인하세요.' : '';
 }
-// 꿀근무 퇴근: 다음 날이면 '익일'을 작게 붙인다.
-function showHoney(el, seconds) {
+// 꿀근무 퇴근 / 퇴근 가능: 해당 없는 쪽은 '–', 다음 날이면 '익일'을 작게 붙인다.
+function showLeaveTimes(el, honey, leave) {
   el.replaceChildren();
-  if (seconds === null) return;
-  if (seconds >= 86400) el.append(Object.assign(document.createElement('small'), { textContent: '익일' }));
-  el.append(clockText(seconds % 86400));
+  if (honey === null && leave === null) return;
+  const part = (seconds, className) => {
+    const span = Object.assign(document.createElement('span'), { className });
+    if (seconds === null) {
+      span.textContent = '–';
+      return span;
+    }
+    if (seconds >= 86400) span.append(Object.assign(document.createElement('small'), { textContent: '익일' }));
+    span.append(clockText(seconds % 86400));
+    return span;
+  };
+  el.append(
+    part(honey, 'honey-time'),
+    Object.assign(document.createElement('span'), { className: 'sep', textContent: ' / ' }),
+    part(leave, 'leave-time'),
+  );
 }
 
 const TIME_INPUTS = [['start', '출근 시간'], ['end', '퇴근 시간']];
@@ -925,7 +1035,7 @@ function recalc() {
   const res = computeSheet(rows);
 
   outputs.forEach((o, i) => {
-    showHoney(o.honey, res.honey[i]);
+    showLeaveTimes(o.honey, res.honey[i], res.leave[i]);
     display(o.work, res.work[i]);
     display(o.overtime, res.overtime[i]);
     display(o.overtimeText, res.overtimeText[i]);
@@ -950,6 +1060,17 @@ function recalc() {
 }
 
 function updateChrome() {
+  const dates = rowDates();
+  for (const btn of weekTabs) {
+    const week = Number(btn.dataset.week);
+    const selected = week === activeWeek;
+    btn.setAttribute('aria-selected', String(selected));
+    btn.tabIndex = selected ? 0 : -1;
+    btn.querySelector('small').textContent = dates ? `${monthDay(dates[(week - 1) * 7])} ~ ${monthDay(dates[(week - 1) * 7 + 6])}` : '';
+  }
+  $('baseDate').value = state.baseDate;
+  $('btnClearDate').hidden = !state.baseDate;
+  $('dateRange').textContent = dates ? `${monthDay(dates[0])}(월) ~ ${monthDay(dates[dates.length - 1])}(일)` : '';
   const where = cloud.user ? '계정' : '이 브라우저';
   $('note').textContent = state.sample[state.sheet]
     ? `기본값(평일 9:00~18:00, 체류 9시간)으로 채워 두었습니다. 입력값은 ${where}에 자동 저장됩니다.`
@@ -1062,6 +1183,35 @@ table.addEventListener('click', (e) => {
   updateChrome();
 });
 
+// 모바일: 1·2주차를 탭으로 나눠 본다(넓은 화면은 표 전체).
+const weekTabs = [...document.querySelectorAll('#weekTabs [role="tab"]')];
+function showWeek(week) {
+  activeWeek = week;
+  table.dataset.week = String(week);
+  updateChrome();
+}
+for (const btn of weekTabs) {
+  btn.addEventListener('click', () => showWeek(Number(btn.dataset.week)));
+  btn.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const next = weekTabs[(weekTabs.indexOf(btn) + 1) % weekTabs.length];
+    next.focus();
+    showWeek(Number(next.dataset.week));
+  });
+}
+
+// 1주차 기준일(선택): 고르면 그 주 월요일부터 1주차로 보고 요일 옆에 날짜를 보여 준다.
+function setBaseDate(value) {
+  state.baseDate = value;
+  activeWeek = currentWeek();
+  saveState();
+  renderTable();
+  recalc();
+  updateChrome();
+}
+$('baseDate').addEventListener('change', (e) => setBaseDate(mondayOf(e.target.value)));
+$('btnClearDate').addEventListener('click', () => setBaseDate(''));
+
 // ==== 계정 저장(Firebase) ====
 // firebase-config.js가 window.FIREBASE_CONFIG를 정의하면 Google 로그인과 계정별 저장을 켠다.
 // 설정이 없거나 SDK를 불러오지 못하는 환경에서는 지금처럼 이 브라우저에만 저장한다.
@@ -1072,7 +1222,8 @@ const cloud = { api: null, user: null, timer: null, edits: 0, conflict: false };
 const setSync = (text) => { $('syncStatus').textContent = text; };
 const errorText = (e) => e?.code ?? e?.message ?? '알 수 없는 오류';
 const timeNow = () => new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-const sameState = (a, b) => Object.keys(SHEETS).every((key) => sameRows(a.data[key], b.data[key]));
+const sameState = (a, b) => (a.baseDate || '') === (b.baseDate || '')
+  && Object.keys(SHEETS).every((key) => sameRows(a.data[key], b.data[key]));
 const timesheetRef = () => cloud.api.store.doc(cloud.api.db, 'timesheets', cloud.user.uid);
 
 function showState() {
@@ -1084,6 +1235,7 @@ function showState() {
 function resetLocal() {
   state.data = defaultData();
   state.sample = defaultSample();
+  state.baseDate = '';
   state.owner = null;
   state.dirty = false;
   showState();
@@ -1091,6 +1243,7 @@ function resetLocal() {
 function applyRemote(remote) {
   state.data = remote.data;
   state.sample = remote.sample;
+  state.baseDate = remote.baseDate;
   state.owner = cloud.user.uid;
   state.dirty = false;
   showState();
@@ -1117,7 +1270,8 @@ async function pushRemote() {
     await cloud.api.store.setDoc(timesheetRef(), {
       version: 1,
       sheet: state.sheet,
-      data: state.data,
+      // 기준일은 보안 규칙을 바꾸지 않아도 되도록 data 안에 함께 저장한다.
+      data: { ...state.data, baseDate: state.baseDate || null },
       sample: state.sample,
       updatedAt: cloud.api.store.serverTimestamp(),
     });
