@@ -97,6 +97,9 @@ h1 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; te
 }
 .tabs button:hover { color: var(--ink); }
 .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.top-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.account { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 10px; font-size: 0.82rem; color: var(--muted); }
+.account .who { color: var(--ink); font-weight: 600; }
 
 /* 요약 */
 .summary {
@@ -287,6 +290,8 @@ table.sheet {
   .stat { grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-left: 0; border-top: 1px solid var(--line); padding: 12px 16px; }
   .stat:first-child { border-top: 0; }
   .stat .val { font-size: 1.4rem; }
+  .top-right { align-items: flex-start; }
+  .account { justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .btn, .tabs button, .stat { transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
@@ -300,9 +305,17 @@ table.sheet {
       <h1>근무시간 계산기<span class="ver">v3.0</span></h1>
       <p class="sub">출퇴근 시간을 입력하면 확정 근무 시간과 잔특근 인정 시간을 계산합니다.</p>
     </div>
-    <div class="tabs" role="tablist" aria-label="계산 단위">
-      <button type="button" role="tab" id="tab-w2" data-sheet="w2" aria-controls="panel">2주 단위</button>
-      <button type="button" role="tab" id="tab-w1" data-sheet="w1" aria-controls="panel">1주 단위</button>
+    <div class="top-right">
+      <div class="account" id="account" hidden>
+        <span id="syncStatus" role="status"></span>
+        <span class="who" id="who" hidden></span>
+        <button type="button" class="btn" id="btnLogin">Google 계정으로 로그인</button>
+        <button type="button" class="btn" id="btnLogout" hidden>로그아웃</button>
+      </div>
+      <div class="tabs" role="tablist" aria-label="계산 단위">
+        <button type="button" role="tab" id="tab-w2" data-sheet="w2" aria-controls="panel">2주 단위</button>
+        <button type="button" role="tab" id="tab-w1" data-sheet="w1" aria-controls="panel">1주 단위</button>
+      </div>
     </div>
   </header>
 
@@ -350,10 +363,11 @@ table.sheet {
       <li><b>잔특근 신청 시간</b>: 숫자로 분을 10분 단위로 입력하세요</li>
       <li><b>초기화</b>: 줄 끝의 「초기화」는 그 요일만, 「전체 초기화」는 표 전체를 기본값(평일 9:00~18:00, 주말 빈칸)으로 되돌립니다</li>
     </ul>
-    <p class="source">계산 규칙은 <code>근무시간_계산기_v3.0.xlsm</code>의 VBA 함수를 그대로 옮기고, 휴일·식사 차감·꿀근무·근무 가능 시간을 더했습니다. 입력값은 이 브라우저에만 저장됩니다.</p>
+    <p class="source">계산 규칙은 <code>근무시간_계산기_v3.0.xlsm</code>의 VBA 함수를 그대로 옮기고, 휴일·식사 차감·꿀근무·근무 가능 시간을 더했습니다. <span id="storageNote">입력값은 이 브라우저에만 저장됩니다.</span></p>
   </section>
 </div>
 
+<script src="firebase-config.js"></script>
 <script>
 // ==== engine:start ====
 // 엑셀 VBA 사용자 정의 함수(WorkTime, OverTime, Sum, Subtract 모듈)를 그대로 옮긴 계산부.
@@ -715,9 +729,9 @@ function migrateRow(r) {
   return row;
 }
 
-function loadState() {
+// 저장된 상태(브라우저 또는 계정)를 검사해 현재 형식으로 바꾼다. 형식이 맞지 않으면 null.
+function parseState(saved) {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORE_KEY));
     if (!saved || !saved.data) return null;
     const fresh = defaultData();
     const data = {};
@@ -730,20 +744,38 @@ function loadState() {
       // 기본값(또는 이전 예시값) 그대로인 표는 최신 기본값으로 다시 채운다.
       data[key] = sample[key] ? fresh[key] : rows.map(migrateRow);
     }
-    return { sheet: SHEETS[saved.sheet] ? saved.sheet : 'w2', data, sample };
+    return {
+      sheet: SHEETS[saved.sheet] ? saved.sheet : 'w2',
+      data,
+      sample,
+      owner: typeof saved.owner === 'string' ? saved.owner : null, // 이 사본이 어느 계정 기록인지
+      dirty: saved.dirty === true, // 계정에 아직 올리지 못한 변경이 있는지
+    };
   } catch {
     return null;
   }
 }
-function saveState() {
+function loadState() {
+  try {
+    return parseState(JSON.parse(localStorage.getItem(STORE_KEY)));
+  } catch {
+    return null;
+  }
+}
+function saveLocal() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
   } catch {
     // 저장소를 쓸 수 없어도 계산은 그대로 동작한다.
   }
 }
+// 입력이 바뀔 때마다 브라우저에 저장하고, 로그인해 있으면 계정 저장도 예약한다.
+function saveState() {
+  saveLocal();
+  scheduleRemote();
+}
 
-const state = loadState() ?? { sheet: 'w2', data: defaultData(), sample: { w2: true, w1: true } };
+const state = loadState() ?? { sheet: 'w2', data: defaultData(), sample: { w2: true, w1: true }, owner: null, dirty: false };
 
 const $ = (id) => document.getElementById(id);
 const table = $('sheet');
@@ -935,15 +967,16 @@ function updateChrome() {
     btn.setAttribute('aria-selected', String(selected));
     btn.tabIndex = selected ? 0 : -1;
   }
+  const where = cloud.user ? '계정' : '이 브라우저';
   $('note').textContent = state.sample[state.sheet]
-    ? '기본값(평일 9:00~18:00, 체류 9시간)으로 채워 두었습니다. 입력값은 이 브라우저에 자동 저장됩니다.'
-    : '입력값은 이 브라우저에 자동 저장됩니다.';
+    ? `기본값(평일 9:00~18:00, 체류 9시간)으로 채워 두었습니다. 입력값은 ${where}에 자동 저장됩니다.`
+    : `입력값은 ${where}에 자동 저장됩니다.`;
 }
 
 function showSheet(sheet) {
   state.sheet = sheet;
   saveState();
-  closeConfirm();
+  if (!cloud.conflict) closeConfirm();
   renderTable();
   recalc();
   updateChrome();
@@ -1003,16 +1036,20 @@ for (const btn of tabs) {
 
 // 전체 초기화 — 확인 단계는 페이지 안에서 처리한다.
 let pending = null;
-function askConfirm(message, actionLabel, action) {
+let pendingNo = null;
+function askConfirm(message, actionLabel, action, cancelLabel = '취소', cancelAction = null) {
   pending = action;
+  pendingNo = cancelAction;
   $('confirmMsg').textContent = message;
   $('confirmYes').textContent = actionLabel;
+  $('confirmNo').textContent = cancelLabel;
   $('actions').hidden = true;
   $('confirm').hidden = false;
   $('confirmNo').focus();
 }
 function closeConfirm() {
   pending = null;
+  pendingNo = null;
   $('confirm').hidden = true;
   $('actions').hidden = false;
 }
@@ -1021,7 +1058,11 @@ $('confirmYes').addEventListener('click', () => {
   closeConfirm();
   action?.();
 });
-$('confirmNo').addEventListener('click', closeConfirm);
+$('confirmNo').addEventListener('click', () => {
+  const action = pendingNo;
+  closeConfirm();
+  action?.();
+});
 
 $('btnResetAll').addEventListener('click', () => {
   if (state.sample[state.sheet]) return;
@@ -1057,9 +1098,190 @@ table.addEventListener('click', (e) => {
   updateChrome();
 });
 
+// ==== 계정 저장(Firebase) ====
+// firebase-config.js가 window.FIREBASE_CONFIG를 정의하면 Google 로그인과 계정별 저장을 켠다.
+// 설정이 없거나 SDK를 불러오지 못하는 환경에서는 지금처럼 이 브라우저에만 저장한다.
+// 계정 기록은 Firestore의 timesheets/{uid} 문서 하나에 담긴다(보안 규칙은 firestore.rules).
+const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
+const cloud = { api: null, user: null, timer: null, edits: 0, conflict: false };
+
+const setSync = (text) => { $('syncStatus').textContent = text; };
+const errorText = (e) => e?.code ?? e?.message ?? '알 수 없는 오류';
+const timeNow = () => new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+const sameState = (a, b) => Object.keys(SHEETS).every((key) => sameRows(a.data[key], b.data[key]));
+const timesheetRef = () => cloud.api.store.doc(cloud.api.db, 'timesheets', cloud.user.uid);
+
+function showState() {
+  saveLocal();
+  renderTable();
+  recalc();
+  updateChrome();
+}
+function resetLocal() {
+  state.data = defaultData();
+  state.sample = { w2: true, w1: true };
+  state.owner = null;
+  state.dirty = false;
+  showState();
+}
+function applyRemote(remote) {
+  state.data = remote.data;
+  state.sample = remote.sample;
+  state.owner = cloud.user.uid;
+  state.dirty = false;
+  showState();
+  setSync(`계정 기록을 불러왔습니다 · ${timeNow()}`);
+}
+
+function scheduleRemote() {
+  if (!cloud.user || cloud.conflict) return;
+  cloud.edits += 1;
+  state.dirty = true;
+  saveLocal();
+  setSync('저장 대기 중…');
+  clearTimeout(cloud.timer);
+  cloud.timer = setTimeout(pushRemote, 800);
+}
+async function pushRemote() {
+  clearTimeout(cloud.timer);
+  cloud.timer = null;
+  if (!cloud.user || cloud.conflict) return;
+  const edits = cloud.edits;
+  state.owner = cloud.user.uid;
+  setSync('저장 중…');
+  try {
+    await cloud.api.store.setDoc(timesheetRef(), {
+      version: 1,
+      sheet: state.sheet,
+      data: state.data,
+      sample: state.sample,
+      updatedAt: cloud.api.store.serverTimestamp(),
+    });
+    // 저장하는 동안 새로 입력한 것이 없을 때만 깨끗한 상태로 본다.
+    if (edits === cloud.edits) state.dirty = false;
+    saveLocal();
+    setSync(`계정에 저장됨 · ${timeNow()}`);
+  } catch (e) {
+    setSync(`저장하지 못했습니다 (${errorText(e)}). 입력값은 이 브라우저에 남아 있습니다.`);
+  }
+}
+
+// 로그인 직후: 계정 기록과 이 브라우저 기록 중 무엇을 쓸지 정한다.
+async function syncOnLogin() {
+  const uid = cloud.user.uid;
+  // 다른 계정의 사본이 남아 있으면 새 계정으로 옮기지 않도록 먼저 지운다.
+  if (state.owner && state.owner !== uid) resetLocal();
+  setSync('계정 기록을 불러오는 중…');
+  try {
+    const snap = await cloud.api.store.getDoc(timesheetRef());
+    const remote = snap.exists() ? parseState(snap.data()) : null;
+    if (!remote) {
+      // 계정에 기록이 없으면 이 브라우저 기록을 계정으로 옮긴다.
+      await pushRemote();
+    } else if (state.owner === uid && state.dirty) {
+      // 지난번에 올리지 못한 변경이 있으면 올린다.
+      await pushRemote();
+    } else if (state.owner === uid || (state.sample.w2 && state.sample.w1) || sameState(remote, state)) {
+      applyRemote(remote);
+    } else {
+      // 로그인 전에 이 브라우저에서 입력한 기록이 계정 기록과 다르면 고르게 한다.
+      cloud.conflict = true;
+      setSync('어느 기록을 쓸지 골라 주세요.');
+      askConfirm(
+        '로그인 전에 이 브라우저에서 입력한 기록이 계정 기록과 다릅니다.',
+        '이 브라우저 기록 쓰기',
+        () => {
+          cloud.conflict = false;
+          pushRemote();
+        },
+        '계정 기록 쓰기',
+        () => {
+          cloud.conflict = false;
+          applyRemote(remote);
+        },
+      );
+    }
+  } catch (e) {
+    setSync(`계정 기록을 불러오지 못했습니다 (${errorText(e)})`);
+  }
+}
+
+// 다른 기기에서 고친 기록을, 이 화면으로 돌아올 때 반영한다.
+async function refreshRemote() {
+  if (!cloud.user || cloud.timer || state.dirty || cloud.conflict) return;
+  try {
+    const snap = await cloud.api.store.getDoc(timesheetRef());
+    const remote = snap.exists() ? parseState(snap.data()) : null;
+    if (remote && !cloud.timer && !state.dirty && !sameState(remote, state)) applyRemote(remote);
+  } catch {
+    // 다음에 화면으로 돌아올 때 다시 시도한다.
+  }
+}
+
+function onUser(user) {
+  cloud.user = user;
+  $('btnLogin').hidden = !!user;
+  $('btnLogout').hidden = !user;
+  $('who').hidden = !user;
+  $('who').textContent = user ? user.displayName || user.email || '' : '';
+  updateChrome();
+  if (user) {
+    syncOnLogin();
+    return;
+  }
+  // 로그아웃 상태면 계정 기록의 사본을 이 브라우저에서 지운다(올리지 못한 변경은 남긴다).
+  if (state.owner && !state.dirty) resetLocal();
+  setSync('로그인하면 근무 기록이 계정에 저장됩니다.');
+}
+async function signIn() {
+  try {
+    await cloud.api.auth.signInWithPopup(cloud.api.authInstance, new cloud.api.auth.GoogleAuthProvider());
+  } catch (e) {
+    if (e?.code === 'auth/popup-closed-by-user' || e?.code === 'auth/cancelled-popup-request') return;
+    setSync(e?.code === 'auth/popup-blocked'
+      ? '팝업이 차단되었습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.'
+      : `로그인하지 못했습니다 (${errorText(e)})`);
+  }
+}
+async function signOutUser() {
+  if (cloud.timer || state.dirty) await pushRemote();
+  if (state.dirty) {
+    setSync('계정에 저장하지 못한 변경이 있어 로그아웃하지 않았습니다. 잠시 후 다시 눌러 주세요.');
+    return;
+  }
+  await cloud.api.auth.signOut(cloud.api.authInstance);
+}
+
+async function initCloud() {
+  const config = window.FIREBASE_CONFIG;
+  if (!config) return;
+  try {
+    const [app, auth, store] = await Promise.all([
+      import(`${FIREBASE_SDK}/firebase-app.js`),
+      import(`${FIREBASE_SDK}/firebase-auth.js`),
+      import(`${FIREBASE_SDK}/firebase-firestore.js`),
+    ]);
+    const firebaseApp = app.initializeApp(config);
+    cloud.api = { auth, store, authInstance: auth.getAuth(firebaseApp), db: store.getFirestore(firebaseApp) };
+  } catch (e) {
+    console.warn('Firebase를 불러오지 못해 이 브라우저에만 저장합니다.', e);
+    return;
+  }
+  $('account').hidden = false;
+  $('storageNote').textContent = '로그인하지 않으면 입력값은 이 브라우저에만 저장되고, Google 계정으로 로그인하면 계정에 저장됩니다.';
+  $('btnLogin').addEventListener('click', signIn);
+  $('btnLogout').addEventListener('click', signOutUser);
+  cloud.api.auth.onAuthStateChanged(cloud.api.authInstance, onUser);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && cloud.timer) pushRemote();
+    if (document.visibilityState === 'visible') refreshRemote();
+  });
+}
+
 renderTable();
 recalc();
 updateChrome();
+initCloud();
 </script>
 </body>
 </html>

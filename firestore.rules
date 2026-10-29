@@ -1,0 +1,14 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 근무시간 계산기: 사용자마다 문서 하나(timesheets/{uid}). 로그인한 본인만 읽고 쓸 수 있다.
+    match /timesheets/{userId} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['version', 'sheet', 'data', 'sample', 'updatedAt']);
+    }
+    // 그 밖의 경로는 모두 막는다(규칙이 없으면 거부).
+  }
+}
