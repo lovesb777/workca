@@ -73,7 +73,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 .page {
-  max-width: 1280px;
+  max-width: 1360px;
   margin: 0 auto;
   padding-block: 28px 48px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -192,6 +192,13 @@ table.sheet {
 .sheet td.honey .sep { color: var(--muted); font-weight: 400; }
 .sheet td.honey .leave-time { color: var(--ink); }
 .sheet thead th.h-honey { color: var(--honey-fg); }
+.sheet td.fit {
+  padding: 0 6px; color: var(--accent);
+  font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.85rem;
+}
+.sheet td.fit small { font-family: var(--font-ui); font-size: 0.72rem; font-weight: 600; margin-right: 3px; }
+.sheet td.fit.none { color: var(--muted); font-family: var(--font-ui); font-weight: 500; font-size: 0.8rem; }
+.sheet thead th.h-fit { color: var(--accent); }
 .sheet td.check { cursor: pointer; }
 .sheet td.check input { width: 18px; height: 18px; margin: 0 auto; padding: 0; accent-color: var(--accent); cursor: pointer; }
 .sheet td.check input:focus { outline-offset: 2px; }
@@ -249,6 +256,7 @@ table.sheet {
       "day day reset reset"
       "start start end end"
       "honey honey honey honey"
+      "fit fit fit fit"
       "att att req req"
       "sys sys per per"
       "bf bf dn dn"
@@ -278,6 +286,7 @@ table.sheet {
   .sheet .k-start { grid-area: start; }
   .sheet .k-end { grid-area: end; }
   .sheet .k-honey { grid-area: honey; }
+  .sheet .k-fit { grid-area: fit; }
   .sheet .k-att { grid-area: att; }
   .sheet .k-sys { grid-area: sys; }
   .sheet .k-per { grid-area: per; }
@@ -299,6 +308,12 @@ table.sheet {
     padding: 10px 12px; border-radius: 8px; background: var(--honey-bg); font-size: 1.02rem;
   }
   .sheet td.honey::before { display: inline; margin: 0; margin-right: auto; color: var(--honey-fg); }
+  .sheet td.fit:empty { display: none; }
+  .sheet td.fit {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    padding: 10px 12px; border: 1px solid var(--accent); border-radius: 8px; font-size: 1.02rem;
+  }
+  .sheet td.fit::before { display: inline; margin: 0; margin-right: auto; color: var(--accent); }
   .sheet td.check {
     display: flex; flex-direction: row-reverse; justify-content: flex-end; align-items: center; gap: 10px;
     height: 42px; padding: 0 12px; background: var(--field); border: 1px solid var(--line); border-radius: 8px;
@@ -387,7 +402,7 @@ table.sheet {
       <span class="val-row"><span class="val" id="sumAccumulated"></span></span>
     </div>
     <div class="stat" id="shortStat">
-      <span class="label">미충족 근무 시간 <small>(잔특근 제외)</small></span>
+      <span class="label"><span id="shortLabel">미충족 근무 시간</span> <small>(잔특근 제외)</small></span>
       <span class="val-row"><span class="val" id="sumShortfall"></span><span class="pill" id="shortPill" hidden></span></span>
     </div>
   </section>
@@ -439,6 +454,8 @@ table.sheet {
       <li><b>휴게</b>: 평일에는 근무 4시간마다 30분이 빠집니다. 6:00 출근이면 10:30 퇴근이 4시간, 15:00 퇴근이 8시간(체류 9시간), 19:30 퇴근이 12시간입니다. 주말·휴일 근무에는 휴게를 빼지 않습니다</li>
       <li><b>꿀근무 퇴근</b>: 출근 시간 + 8시간 29분입니다. 체류 8시간 30분부터 휴게 30분이 한 번 더 빠지므로, 이 시각까지 퇴근하면 휴게는 30분만 빠집니다</li>
       <li><b>퇴근 가능</b>: 출근 시간 + 4시간 30분(4시간 근무 + 휴게 30분)입니다. 연차·휴일·주말에는 표시하지 않습니다</li>
+      <li><b>맞춤 퇴근</b>: 다른 날은 지금 입력대로 둘 때, 그날 몇 시에 퇴근하면 누적 근무가 필수 근무 시간과 딱 맞는지 보여 줍니다. 휴게·식사·비업무·잔특근 인정까지 반영합니다. "필요 없음"은 그날 근무하지 않아도 이미 채운 경우, "불가"는 다음 날 5:59:59까지 퇴근해도 모자란 경우입니다</li>
+      <li><b>초과 근무 시간</b>: 누적이 필수 시간을 넘으면 요약의 미충족 칸이 초과 근무 시간으로 바뀝니다(잔특근 인정분 제외)</li>
       <li><b>비업무 시간</b>: 숫자로 분을 1분 단위로 입력하세요</li>
       <li><b>식사</b>: 조식·석식을 먹었으면 체크하세요. 한 끼에 30분씩 근무 시간에서 빠집니다</li>
       <li><b>잔특근 신청 시간</b>: 숫자로 분을 10분 단위로 입력하세요</li>
@@ -547,6 +564,8 @@ function calculateWorkTime(dayCell, holidayCell, startCell, endCell, break1Cell,
     let totalMinutes;
     if (endTime < startTime) totalMinutes = (endTime + 1 - startTime) * 24 * 60;
     else totalMinutes = (endTime - startTime) * 24 * 60;
+    // (수정) 원본은 일련값 오차로 9:00~13:00이 239.99999…분이 되어 휴게가 빠지지 않았다. 초 단위로 맞춘다.
+    totalMinutes = Math.round(totalMinutes * 60) / 60;
 
     // 비업무시간 총합 (추가: 조식·석식 차감)
     const nonWorkMinutes = break1 + break2 + mealMinutes;
@@ -750,6 +769,35 @@ function earliestLeaveTime(day, holiday, vacation, start) {
   return leave < 86400 + DAY_START_SECONDS ? leave : null;
 }
 
+// (추가) 맞춤 퇴근: 다른 날은 입력한 그대로 둘 때, 그날 몇 시에 퇴근하면 누적 근무(잔특근 제외)가 필수 시간과 딱 맞는지.
+// 출근부터 1분씩 늘려 처음으로 누적 ≥ 필수가 되는 시각을 찾는다. 휴게·식사·비업무·잔특근 인정이 모두 반영된다.
+// 반환값: 출근일 0시부터의 초, 'met'(그날 근무하지 않아도 채움), 'late'(다음 날 5:59:59까지 퇴근해도 모자람), null(해당 없음)
+const toMinutes = (cell) => {
+  const [h, m] = cell.split(':').map(Number);
+  return h * 60 + m;
+};
+// 합계(SumOverTimeMin)처럼 잔특근 인정이 오류인 날은 0으로 본다.
+const overtimeMinutes = (cell) => (typeof cell === 'number' ? cell : 0);
+function fitLeaveTimes(rows, holidays, starts, meals, leaveMinutes, work, overtime, required) {
+  if (typeof required !== 'string') return rows.map(() => null);
+  const target = toMinutes(required);
+  const counted = work.map((w, i) => (typeof w === 'string' ? toMinutes(w) - overtimeMinutes(overtime[i]) : null));
+  return rows.map((r, i) => {
+    if (typeof starts[i] !== 'number' || r.vacation === '연차') return null;
+    if (counted.some((c, j) => j !== i && c === null)) return null;
+    const others = counted.reduce((sum, c, j) => (j === i ? sum : sum + c), 0);
+    const startSec = Math.round(starts[i] * 86400);
+    for (let k = 0; startSec + k * 60 < 86400 + DAY_START_SECONDS; k++) {
+      const endSec = startSec + k * 60;
+      const actual = calculateWorkTime(r.day, holidays[i], starts[i], (endSec % 86400) / 86400, r.sys, r.personal, meals[i]);
+      if (isErr(actual)) return null;
+      const ot = overtimeMinutes(calculateOvertime(r.day, holidays[i], r.requested, actual));
+      if (others + toMinutes(addMinutes(actual, leaveMinutes[i])) - ot >= target) return k === 0 ? 'met' : endSec;
+    }
+    return 'late';
+  });
+}
+
 // 시트 하나를 다시 계산한다.
 // rows: [{ day, holiday, vacation, start, end, sys, personal, requested, breakfast, dinner }] (셀 값, 식사는 true/false)
 function computeSheet(rows) {
@@ -781,9 +829,13 @@ function computeSheet(rows) {
   const required = calculateRequiredWorkTime(rows.map((r) => r.day), holidays, rows.map((r) => (LEAVE_MINUTES[r.vacation] ? null : r.vacation)));
   const accumulated = subtractTime(totals.work, totals.overtime);
   const shortfall = subtractTime(required, accumulated);
+  // (추가) 필수 시간을 넘긴 만큼
+  const surplus = subtractTime(accumulated, required);
+  const fit = fitLeaveTimes(rows, holidays, starts, meals, leaveMinutes, work, overtime, required);
   return {
-    work, overtime, overtimeText, honey, leave, windowIssues, totals, required, accumulated, shortfall,
+    work, overtime, overtimeText, honey, leave, fit, windowIssues, totals, required, accumulated, shortfall, surplus,
     shortfallPositive: isPositiveTime(shortfall),
+    surplusPositive: isPositiveTime(surplus),
   };
 }
 
@@ -961,7 +1013,8 @@ function rowLabel(i) {
 }
 
 // 열 너비(px): 요일부터 초기화까지. 2주 단위는 맨 앞에 구간 열이 붙는다.
-const COL_WIDTHS = [56, 84, 112, 112, 200, 64, 64, 48, 48, 76, 84, 56, 64, 104];
+const COL_WIDTHS = [56, 84, 104, 104, 200, 104, 60, 60, 48, 48, 76, 84, 56, 64, 104];
+const FIT_TITLE = '다른 날은 지금 입력대로 둘 때, 이 날 이 시각에 퇴근하면 누적 근무가 필수 근무 시간과 딱 맞습니다';
 const WEEK_COL_WIDTH = 56;
 const CHEVRON = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -979,6 +1032,7 @@ function renderTable() {
     + '<th rowspan="2" scope="col">출근 시간</th>'
     + '<th rowspan="2" scope="col">퇴근 시간</th>'
     + '<th rowspan="2" scope="col" class="h-honey">꿀근무 퇴근<br>/ 퇴근 가능</th>'
+    + `<th rowspan="2" scope="col" class="h-fit" title="${FIT_TITLE}">맞춤 퇴근</th>`
     + '<th colspan="2" scope="colgroup">비업무(분)</th>'
     + '<th colspan="2" scope="colgroup">식사 −30분</th>'
     + '<th rowspan="2" scope="col">잔특근<br>신청(분)</th>'
@@ -1008,6 +1062,7 @@ function renderTable() {
       + `<td class="in k-start" data-label="출근"><div class="combo"><input class="time" id="${fieldId(i, 'start')}" data-f="start" placeholder="hh:mm:ss" inputmode="numeric" autocomplete="off" spellcheck="false" role="combobox" aria-haspopup="dialog" aria-expanded="false" aria-controls="timePicker" aria-label="${label} 출근 시간"><button type="button" class="combo-toggle" tabindex="-1" aria-label="${label} 출근 시간 선택">${CHEVRON}</button></div></td>`
       + `<td class="in k-end" data-label="퇴근"><div class="combo"><input class="time" id="${fieldId(i, 'end')}" data-f="end" placeholder="hh:mm:ss" inputmode="numeric" autocomplete="off" spellcheck="false" role="combobox" aria-haspopup="dialog" aria-expanded="false" aria-controls="timePicker" aria-label="${label} 퇴근 시간"><button type="button" class="combo-toggle" tabindex="-1" aria-label="${label} 퇴근 시간 선택">${CHEVRON}</button></div></td>`
       + '<td class="honey k-honey" data-label="꿀근무 / 퇴근 가능" data-o="honey" title="왼쪽: 꿀근무 퇴근(출근 + 8시간 29분) / 오른쪽: 퇴근 가능(출근 + 4시간 30분)"></td>'
+      + '<td class="fit k-fit" data-label="맞춤 퇴근 (필수 시간 딱 맞춤)" data-o="fit"></td>'
       + `<td class="in k-sys" data-label="비업무 시스템(분)"><input class="num" id="${fieldId(i, 'sys')}" data-f="sys" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 시스템(분)"></td>`
       + `<td class="in k-per" data-label="비업무 개인(분)"><input class="num" id="${fieldId(i, 'personal')}" data-f="personal" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 개인(분)"></td>`
       + `<td class="in check k-bf" data-label="조식 −30분"><input type="checkbox" id="${fieldId(i, 'breakfast')}" data-f="breakfast" tabindex="-1" aria-label="${label} 조식"></td>`
@@ -1023,7 +1078,7 @@ function renderTable() {
       + '</tr>';
   });
 
-  html += `</tbody><tfoot><tr><th scope="row" colspan="${cfg.weeks ? 10 : 9}">누적 시간</th>`
+  html += `</tbody><tfoot><tr><th scope="row" colspan="${cfg.weeks ? 11 : 10}">누적 시간</th>`
     + '<td class="k-f1" data-label="잔특근 신청 합계" data-t="requested"></td>'
     + '<td class="k-f2" data-label="확정 근무 합계" data-t="work"></td>'
     + '<td class="k-f3" data-label="잔특근 인정 합계" data-t="overtime"></td>'
@@ -1034,6 +1089,7 @@ function renderTable() {
   cfg.days.forEach((_, i) => fillRow(i));
   outputs = [...table.tBodies[0].rows].map((tr) => ({
     honey: tr.querySelector('[data-o="honey"]'),
+    fit: tr.querySelector('[data-o="fit"]'),
     work: tr.querySelector('[data-o="work"]'),
     overtime: tr.querySelector('[data-o="overtime"]'),
     overtimeText: tr.querySelector('[data-o="overtimeText"]'),
@@ -1067,6 +1123,22 @@ function showLeaveTimes(el, honey, leave) {
     Object.assign(document.createElement('span'), { className: 'sep', textContent: ' / ' }),
     part(leave, 'leave-time'),
   );
+}
+
+// 맞춤 퇴근: 시각(다음 날이면 '익일'), 그날 근무 없이 채우면 '필요 없음', 다음 날 5:59:59까지도 모자라면 '불가'
+function showFitTime(el, fit) {
+  el.replaceChildren();
+  el.classList.toggle('none', typeof fit === 'string');
+  el.title = fit === 'met' ? '이 날 근무하지 않아도 필수 근무 시간을 채웁니다'
+    : fit === 'late' ? '다음 날 5:59:59까지 퇴근해도 필수 근무 시간에 모자랍니다'
+      : fit === null ? '' : FIT_TITLE;
+  if (fit === null) return;
+  if (typeof fit === 'string') {
+    el.textContent = fit === 'met' ? '필요 없음' : '불가';
+    return;
+  }
+  if (fit >= 86400) el.append(Object.assign(document.createElement('small'), { textContent: '익일' }));
+  el.append(clockText(fit % 86400));
 }
 
 const TIME_INPUTS = [['start', '출근 시간'], ['end', '퇴근 시간']];
@@ -1113,6 +1185,7 @@ function recalc() {
 
   outputs.forEach((o, i) => {
     showLeaveTimes(o.honey, res.honey[i], res.leave[i]);
+    showFitTime(o.fit, res.fit[i]);
     display(o.work, res.work[i]);
     display(o.overtime, res.overtime[i]);
     display(o.overtimeText, res.overtimeText[i]);
@@ -1121,7 +1194,10 @@ function recalc() {
 
   display($('sumRequired'), res.required);
   display($('sumAccumulated'), res.accumulated);
-  display($('sumShortfall'), res.shortfall);
+  // (추가) 필수 시간을 넘기면 미충족(0) 대신 초과 시간을 보여 준다.
+  const over = res.surplusPositive === true;
+  $('shortLabel').textContent = over ? '초과 근무 시간' : '미충족 근무 시간';
+  display($('sumShortfall'), over ? res.surplus : res.shortfall);
   for (const id of ['sumRequired', 'sumAccumulated', 'sumShortfall']) $(id).classList.remove('zero');
 
   // 엑셀 조건부 서식: IsPositiveTime이면 빨강, 아니면 초록, 수식 오류면 서식 없음
@@ -1131,7 +1207,7 @@ function recalc() {
   stat.classList.toggle('good', res.shortfallPositive === false);
   const hasTime = typeof res.shortfall === 'string' && res.shortfall !== '';
   pill.hidden = !hasTime;
-  pill.textContent = res.shortfallPositive === true ? '미충족' : '충족';
+  pill.textContent = over ? '초과' : res.shortfallPositive === true ? '미충족' : '충족';
 
   markValidity(res);
 }
