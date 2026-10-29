@@ -72,7 +72,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 .page {
-  max-width: 1220px;
+  max-width: 1240px;
   margin: 0 auto;
   padding-block: 28px 48px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -191,9 +191,10 @@ table.sheet {
 .sheet td.check { cursor: pointer; }
 .sheet td.check input { width: 18px; height: 18px; margin: 0 auto; padding: 0; accent-color: var(--accent); cursor: pointer; }
 .sheet td.check input:focus { outline-offset: 2px; }
+.row-actions { display: flex; justify-content: center; gap: 4px; }
 .row-reset {
-  font: inherit; font-size: 0.78rem; font-weight: 500; color: var(--muted); white-space: nowrap;
-  background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  font: inherit; font-size: 0.75rem; font-weight: 500; color: var(--muted); white-space: nowrap;
+  background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 3px 7px; cursor: pointer;
 }
 .row-reset:hover { color: var(--ink); border-color: var(--muted); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -213,7 +214,7 @@ table.sheet {
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 8px; padding: 12px;
     background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
     grid-template-areas:
-      "day day day reset"
+      "day day reset reset"
       "start start end end"
       "honey honey honey honey"
       "att att req req"
@@ -236,6 +237,7 @@ table.sheet {
   .sheet .wk-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
   .sheet .day-suffix { display: inline; }
   .sheet .k-reset { grid-area: reset; justify-self: end; align-self: center; }
+  .sheet .k-reset .row-actions { justify-content: flex-end; }
   .sheet .k-start { grid-area: start; }
   .sheet .k-end { grid-area: end; }
   .sheet .k-honey { grid-area: honey; }
@@ -361,6 +363,7 @@ table.sheet {
     <p class="note" id="note"></p>
     <div class="actions" id="actions">
       <button type="button" class="btn" id="btnResetAll">전체 초기화</button>
+      <button type="button" class="btn" id="btnClearAll">전체 비우기</button>
     </div>
     <div class="confirm" id="confirm" hidden>
       <span id="confirmMsg"></span>
@@ -386,12 +389,12 @@ table.sheet {
       <li><b>출근 시간</b>: "hh:mm:ss" 형식으로 입력하세요. 6:00:00부터 출근할 수 있습니다</li>
       <li><b>퇴근 시간</b>: "hh:mm:ss" 형식으로 입력하세요. 출근보다 이른 시각은 다음 날로 계산하며, 다음 날 5:59:59까지 퇴근할 수 있습니다</li>
       <li><b>꿀근무 퇴근</b>: 출근 시간 + 8시간 29분입니다. 체류 8시간 30분부터 휴게 30분이 한 번 더 빠지므로, 이 시각까지 퇴근하면 휴게는 30분만 빠집니다</li>
-      <li><b>퇴근 가능</b>: 그날 확정 근무가 필수 시간(평일 8시간, 반차 4시간, 반반차 6시간)을 채우는 가장 이른 퇴근 시각입니다. 비업무·식사 시간을 넣으면 그만큼 늦어집니다</li>
+      <li><b>퇴근 가능</b>: 출근 시간 + 4시간 30분(4시간 근무 + 휴게 30분)입니다. 연차·휴일·주말에는 표시하지 않습니다</li>
       <li><b>비업무 시간</b>: 숫자로 분을 1분 단위로 입력하세요</li>
       <li><b>식사</b>: 조식·석식을 먹었으면 체크하세요. 한 끼에 30분씩 근무 시간에서 빠집니다</li>
       <li><b>잔특근 신청 시간</b>: 숫자로 분을 10분 단위로 입력하세요</li>
       <li><b>1주차 기준일</b>: 선택 사항입니다. 날짜를 고르면 그 주 월요일부터 1주차로 보고 요일 옆에 날짜를 보여 줍니다. 비우면 요일만 보입니다</li>
-      <li><b>초기화</b>: 줄 끝의 「초기화」는 그 요일만, 「전체 초기화」는 표 전체를 기본값(평일 9:00~18:00, 주말 빈칸)으로 되돌립니다</li>
+      <li><b>초기화 / 비우기</b>: 줄 끝의 「초기화」는 그 요일을 기본값(평일 9:00~18:00, 주말 빈칸)으로 되돌리고, 「비우기」는 그 요일의 입력을 모두 지웁니다. 「전체 초기화」·「전체 비우기」는 표 전체에 같은 동작을 합니다</li>
     </ul>
     <p class="source">계산 규칙은 <code>근무시간_계산기_v3.0.xlsm</code>의 VBA 함수를 그대로 옮기고, 휴일·식사 차감·꿀근무·근무 가능 시간을 더했습니다. <span id="storageNote">입력값은 이 브라우저에만 저장됩니다.</span></p>
   </section>
@@ -676,25 +679,14 @@ function honeyLeaveTime(day, holiday, vacation, start) {
 // (추가) 조식·석식은 한 끼에 30분씩 근무 시간에서 뺀다.
 const MEAL_MINUTES = 30;
 
-// (추가) 퇴근 가능: 그날 확정 근무가 필수 시간(평일 8시간, 반차 4시간, 반반차 6시간)을 채우는
-// 가장 이른 퇴근 시각. 비업무·식사 차감까지 그대로 반영하려고 확정 근무 계산을 1분씩 되풀이한다.
-// 반환값은 출근일 0시부터의 초. 연차·휴일·주말이거나 다음 날 5:59:59를 넘으면 null.
-const REQUIRED_BY_ATTENDANCE = { '': 480, '반차': 240, '반반차': 360 };
-function earliestLeaveTime(day, holiday, vacation, start, sys, personal, mealMinutes) {
+// (추가) 퇴근 가능: 출근 + 4시간 30분(4시간 근무 + 휴게 30분). 평일·반차·반반차만 해당하고
+// 연차·휴일·주말은 제외한다. 반환값은 출근일 0시부터의 초. 다음 날 5:59:59를 넘으면 null.
+const MIN_STAY_SECONDS = (4 * 60 + 30) * 60;
+function earliestLeaveTime(day, holiday, vacation, start) {
   if (typeof start !== 'number') return null;
-  if (!WEEKDAYS.includes(day) || String(holiday ?? '').toUpperCase() === 'O') return null;
-  const required = REQUIRED_BY_ATTENDANCE[vacation ?? ''];
-  if (required === undefined) return null;
-  const startSec = Math.round(start * 86400);
-  for (let stay = required; stay <= 24 * 60; stay++) {
-    const leave = startSec + stay * 60;
-    if (leave >= 86400 + DAY_START_SECONDS) return null;
-    const work = calculateWorkTime(day, holiday, start, (leave % 86400) / 86400, sys, personal, mealMinutes);
-    if (isErr(work)) return null;
-    const [h, m] = work.split(':').map(Number);
-    if (h * 60 + m >= required) return leave;
-  }
-  return null;
+  if (!WEEKDAYS.includes(day) || String(holiday ?? '').toUpperCase() === 'O' || vacation === '연차') return null;
+  const leave = Math.round(start * 86400) + MIN_STAY_SECONDS;
+  return leave < 86400 + DAY_START_SECONDS ? leave : null;
 }
 
 // 시트 하나를 다시 계산한다.
@@ -709,7 +701,7 @@ function computeSheet(rows) {
   const work = rows.map((r, i) => calculateWorkTime(r.day, holidays[i], starts[i], ends[i], r.sys, r.personal, meals[i]));
   const overtime = rows.map((r, i) => calculateOvertime(r.day, holidays[i], r.requested, work[i]));
   const honey = rows.map((r, i) => honeyLeaveTime(r.day, holidays[i], r.vacation, starts[i]));
-  const leave = rows.map((r, i) => earliestLeaveTime(r.day, holidays[i], r.vacation, starts[i], r.sys, r.personal, meals[i]));
+  const leave = rows.map((r, i) => earliestLeaveTime(r.day, holidays[i], r.vacation, starts[i]));
   const overtimeText = overtime.map(textHHMM);
   const totals = {
     requested: sumOvertimeMin(rows.map((r) => r.requested)),
@@ -892,7 +884,7 @@ function rowLabel(i) {
 }
 
 // 열 너비(px): 요일부터 초기화까지. 2주 단위는 맨 앞에 구간 열이 붙는다.
-const COL_WIDTHS = [56, 92, 96, 96, 200, 64, 64, 48, 48, 80, 84, 56, 64, 76];
+const COL_WIDTHS = [56, 84, 96, 96, 200, 64, 64, 48, 48, 76, 84, 56, 64, 104];
 const WEEK_COL_WIDTH = 56;
 
 function renderTable() {
@@ -913,7 +905,7 @@ function renderTable() {
     + '<th rowspan="2" scope="col">잔특근<br>신청(분)</th>'
     + '<th rowspan="2" scope="col">확정<br>근무 시간</th>'
     + '<th colspan="2" scope="colgroup">잔특근 인정</th>'
-    + '<th rowspan="2" scope="col"><span class="sr">요일별 초기화</span></th>'
+    + '<th rowspan="2" scope="col"><span class="sr">요일별 초기화·비우기</span></th>'
     + '</tr><tr><th scope="col">시스템</th><th scope="col">개인</th><th scope="col">조식</th><th scope="col">석식</th><th scope="col">분</th><th scope="col">시간</th></tr></thead><tbody>';
 
   const dates = rowDates();
@@ -933,7 +925,7 @@ function renderTable() {
       + `<td class="in k-att" data-label="근태"><select id="${fieldId(i, 'vacation')}" data-f="vacation" aria-label="${label} 근태"><option value=""></option><option>연차</option><option>반차</option><option>반반차</option><option>휴일</option></select></td>`
       + `<td class="in k-start" data-label="출근"><input class="time" id="${fieldId(i, 'start')}" data-f="start" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 출근 시간"></td>`
       + `<td class="in k-end" data-label="퇴근"><input class="time" id="${fieldId(i, 'end')}" data-f="end" placeholder="hh:mm:ss" autocomplete="off" spellcheck="false" aria-label="${label} 퇴근 시간"></td>`
-      + '<td class="honey k-honey" data-label="꿀근무 / 퇴근 가능" data-o="honey" title="왼쪽: 꿀근무 퇴근(출근 + 8시간 29분) / 오른쪽: 퇴근 가능(필수 시간을 채우는 가장 이른 퇴근)"></td>'
+      + '<td class="honey k-honey" data-label="꿀근무 / 퇴근 가능" data-o="honey" title="왼쪽: 꿀근무 퇴근(출근 + 8시간 29분) / 오른쪽: 퇴근 가능(출근 + 4시간 30분)"></td>'
       + `<td class="in k-sys" data-label="비업무 시스템(분)"><input class="num" id="${fieldId(i, 'sys')}" data-f="sys" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 시스템(분)"></td>`
       + `<td class="in k-per" data-label="비업무 개인(분)"><input class="num" id="${fieldId(i, 'personal')}" data-f="personal" inputmode="numeric" autocomplete="off" aria-label="${label} 비업무 개인(분)"></td>`
       + `<td class="in check k-bf" data-label="조식 −30분"><input type="checkbox" id="${fieldId(i, 'breakfast')}" data-f="breakfast" aria-label="${label} 조식"></td>`
@@ -942,7 +934,10 @@ function renderTable() {
       + '<td class="out k-work" data-label="확정 근무" data-o="work"></td>'
       + '<td class="out k-ot" data-label="인정(분)" data-o="overtime"></td>'
       + '<td class="out k-ott" data-label="인정 시간" data-o="overtimeText"></td>'
-      + `<td class="k-reset"><button type="button" class="row-reset" aria-label="${label} 초기화">초기화</button></td>`
+      + '<td class="k-reset"><div class="row-actions">'
+      + `<button type="button" class="row-reset" aria-label="${label} 초기화">초기화</button>`
+      + `<button type="button" class="row-reset row-clear" aria-label="${label} 비우기">비우기</button>`
+      + '</div></td>'
       + '</tr>';
   });
 
@@ -1149,6 +1144,17 @@ $('confirmNo').addEventListener('click', () => {
   action?.();
 });
 
+$('btnClearAll').addEventListener('click', () => {
+  if (state.data[state.sheet].every((row) => sameRows([row], [blankRow()]))) return;
+  askConfirm('이 표의 입력값을 모두 비울까요?', '비우기', () => {
+    state.data[state.sheet] = SHEETS[state.sheet].days.map(() => blankRow());
+    syncPristine();
+    saveState();
+    renderTable();
+    recalc();
+    updateChrome();
+  });
+});
 $('btnResetAll').addEventListener('click', () => {
   if (state.sample[state.sheet]) return;
   askConfirm('이 표를 모두 기본값으로 초기화할까요?', '초기화', () => {
@@ -1170,12 +1176,12 @@ table.addEventListener('click', (e) => {
   box.dispatchEvent(new Event('input', { bubbles: true }));
 });
 
-// 요일별 초기화
+// 요일별 초기화(기본값) / 비우기(모두 지움)
 table.addEventListener('click', (e) => {
   const btn = e.target.closest('.row-reset');
   if (!btn) return;
   const i = Number(btn.closest('tr').dataset.row);
-  state.data[state.sheet][i] = defaultRow(SHEETS[state.sheet].days[i]);
+  state.data[state.sheet][i] = btn.classList.contains('row-clear') ? blankRow() : defaultRow(SHEETS[state.sheet].days[i]);
   fillRow(i);
   syncPristine();
   saveState();
