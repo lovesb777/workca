@@ -597,7 +597,7 @@ table.sheet {
       <div class="account" id="account" hidden>
         <span id="syncStatus" role="status"></span>
         <span class="who" id="who" hidden></span>
-        <button type="button" class="btn" id="btnLogin">Google 계정으로 로그인</button>
+        <button type="button" class="btn" id="btnLogin" hidden>Google 계정으로 로그인</button>
         <button type="button" class="btn" id="btnLogout" hidden>로그아웃</button>
       </div>
     </div>
@@ -2261,6 +2261,8 @@ async function initCloud() {
     return;
   }
   $('account').hidden = false;
+  // 지난 로그인은 Firebase가 이 브라우저에 보관해 두었다가 되살린다. 확인이 끝날 때까지 로그인 버튼을 숨긴다.
+  setSync('로그인 상태 확인 중…');
   $('storageNote').textContent = '로그인하지 않으면 입력값은 이 브라우저에만 저장되고, Google 계정으로 로그인하면 계정에 저장됩니다.';
   $('btnLogin').addEventListener('click', signIn);
   $('btnLogout').addEventListener('click', signOutUser);
