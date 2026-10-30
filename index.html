@@ -53,6 +53,25 @@ function applyBackground() {
   root.toggle('bg-on', bg !== 'off');
 }
 applyBackground();
+
+// 밝기: 자동(기기 설정을 따름) / 밝게 / 어둡게. 그리기 전에 <html data-theme>으로 정하고, 이 기기에만 기억한다.
+const THEME_KEY = 'worktime-calculator-theme';
+let theme = (() => {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    return saved === 'light' || saved === 'dark' ? saved : 'auto';
+  } catch {
+    return 'auto';
+  }
+})();
+let themeForced = false;
+function applyTheme() {
+  const root = document.documentElement;
+  if (theme !== 'auto') root.dataset.theme = theme;
+  else if (themeForced) delete root.dataset.theme;
+  themeForced = theme !== 'auto';
+}
+applyTheme();
 </script>
 <style>
 /* Layout: 출퇴근 기록지 — 위에 요약 3칸, 가운데 엑셀과 같은 열 구성의 기록표, 아래에 입력 안내 */
@@ -352,6 +371,8 @@ table.sheet {
 }
 .view-toggle button:hover { color: var(--ink); }
 .view-toggle button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.theme-toggle button { display: inline-flex; align-items: center; padding: 5px 8px; }
+.theme-toggle svg { width: 15px; height: 15px; }
 
 /* 간단히 보기: 비슷한 칸을 합친 표 */
 .sheet.compact th, .sheet.compact td { height: 38px; }
@@ -554,6 +575,20 @@ table.sheet {
 
 /* 안내 */
 .guide { display: grid; gap: 8px; }
+.guide summary {
+  display: inline-flex; align-items: center; gap: 10px; width: fit-content; padding: 2px 4px 2px 0;
+  list-style: none; cursor: pointer; border-radius: 6px;
+}
+.guide summary::-webkit-details-marker { display: none; }
+.guide summary::before {
+  content: ''; width: 7px; height: 7px; margin: 0 2px 2px 4px; border: solid var(--muted); border-width: 0 2px 2px 0;
+  transform: rotate(-45deg); transition: transform 0.15s;
+}
+.guide details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; }
+.guide summary:hover h2 { color: var(--accent); }
+.guide .fold-hint { color: var(--muted); font-size: 0.8rem; }
+.guide details[open] .fold-hint { display: none; }
+.guide-body { display: grid; gap: 8px; margin-top: 8px; }
 .guide h2 { margin: 0; font-size: 0.95rem; font-weight: 600; }
 .guide ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; color: var(--muted); font-size: 0.88rem; }
 .guide b { color: var(--ink); font-weight: 600; }
@@ -588,6 +623,11 @@ table.sheet {
     <div class="top-right">
       <div class="top-tools">
         <label class="bg-picker" title="배경 꾸미기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5Q8.9 7.1 14.5 8Q8.9 8.9 8 14.5Q7.1 8.9 1.5 8Q7.1 7.1 8 1.5Z" fill="currentColor"/></svg><select id="bgSelect" aria-label="배경 꾸미기"><option value="mochi">몽글몽글</option><option value="gingham">깅엄 체크</option><option value="sprinkle">별사탕</option><option value="off">배경 없음</option></select></label>
+        <div class="view-toggle theme-toggle" id="themeToggle" role="group" aria-label="밝기">
+          <button type="button" data-theme-choice="auto" aria-pressed="true" aria-label="밝기 자동" title="자동(기기 설정을 따름)"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 0 0 11.2Z" fill="currentColor"/></svg></button>
+          <button type="button" data-theme-choice="light" aria-pressed="false" aria-label="밝게" title="밝게"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><path d="M8 1.2v1.8M8 13v1.8M1.2 8H3M13 8h1.8M3.2 3.2l1.3 1.3M11.5 11.5l1.3 1.3M3.2 12.8l1.3-1.3M11.5 4.5l1.3-1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          <button type="button" data-theme-choice="dark" aria-pressed="false" aria-label="어둡게" title="어둡게"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 10.2A6 6 0 0 1 5.8 2.5A6 6 0 1 0 13.5 10.2Z" fill="currentColor"/></svg></button>
+        </div>
         <div class="view-toggle" id="layoutToggle" role="group" aria-label="화면 형태">
           <button type="button" data-layout="auto" aria-pressed="true" title="화면 너비에 맞춤">자동</button>
           <button type="button" data-layout="desktop" aria-pressed="false">PC</button>
@@ -661,7 +701,9 @@ table.sheet {
   </div>
 
   <section class="guide">
-    <h2>입력 안내</h2>
+    <details id="guideFold">
+    <summary><h2>입력 안내</h2><span class="fold-hint">계산 규칙 · 사용법 펼치기</span></summary>
+    <div class="guide-body">
     <ul>
       <li><b>근태</b>: 연차 / 반차 / 반반차 / 휴일 사용 시 선택하세요. 공휴일·휴무도 휴일로 선택합니다. 연차·반차·반반차는 필수 시간을 그대로 두고 확정 근무에 넣습니다. 연차는 8:00, 반차·반반차는 그날 실제 근무에 4:00·2:00을 더합니다(잔특근 인정은 실제 근무로만 판단). 휴일은 필수·누적 시간에서 모두 뺍니다. 휴일·연차를 고르면 기본 출퇴근 시간(9:00~18:00)은 비워지고, 반차·반반차를 고르면 기본 퇴근 시간이 13:30·15:30(4시간·6시간 근무 + 휴게 30분)으로 바뀝니다. 휴일에 근무했다면 출퇴근 시간을 입력하세요</li>
       <li><b>출근 시간</b>: 숫자만 치면 두 자리마다 ":"가 자동으로 들어갑니다(090000 → 09:00:00, 첫 숫자가 3~9면 한 자리 시로 보아 9 → 9:). 분·초를 비우면 0으로 채웁니다. ▾ 버튼으로 시·분·초를 하나씩 고를 수도 있습니다. 6:00:00부터 출근할 수 있습니다</li>
@@ -676,12 +718,15 @@ table.sheet {
       <li><b>잔특근 신청 시간</b>: 숫자로 분을 10분 단위로 입력하세요</li>
       <li><b>1주차 기준일</b>: 선택 사항입니다. 날짜를 고르면 그 주 월요일부터 1주차로 보고 요일 옆에 날짜를 보여 줍니다. 그 2주 안의 평일 공휴일(대체공휴일·선거일 포함)은 근태가 자동으로 '휴일'이 됩니다(우주항공청 월력요항 기준, 현재 2027년까지). 비우면 요일만 보입니다</li>
       <li><b>배경 · 아이콘</b>: 오른쪽 위 「✦ 배경」에서 몽글몽글 · 깅엄 체크 · 별사탕 · 배경 없음을 고릅니다(이 기기에 기억). index.html과 같은 폴더에 <code>logo.png</code>를 올리면 제목·탭·홈 화면 아이콘이 그 이미지로 바뀌고, <code>pattern.png</code>를 올리면 배경 메뉴에 「내 이미지」가 생깁니다(투명 배경 PNG 권장)</li>
+      <li><b>밝기</b>: 오른쪽 위 반달 · 해 · 달 버튼으로 자동(기기 설정을 따름) · 밝게 · 어둡게를 고릅니다. 고른 밝기는 이 기기에 기억됩니다</li>
       <li><b>화면</b>: 오른쪽 위 「자동 / PC / 모바일」로 화면 형태를 고릅니다. 자동은 화면 너비에 맞추고, PC는 휴대폰에서도 표로(가로로 밀어서 보기), 모바일은 PC에서도 요일별 카드로 보여 줍니다. 고른 형태는 이 기기에 기억됩니다</li>
       <li><b>보기</b>: 「기본 보기」는 원본 엑셀과 같은 칸을, 「간단히 보기」는 비슷한 칸을 합친 표를 보여 줍니다. 간단히 보기에서는 꿀근무·퇴근 가능·맞춤 퇴근이 '퇴근 안내' 한 칸에 모이고, 비업무·식사·잔특근도 각각 한 칸으로 합쳐집니다. 처음에는 간단히 보기로 열리고, 고른 보기는 이 기기에 기억됩니다</li>
       <li><b>초기화 / 비우기</b>: 줄 끝의 「초기화」는 그 요일을 기본값(평일 9:00~18:00, 주말 빈칸)으로 되돌리고, 「비우기」는 그 요일의 입력을 모두 지웁니다. 「전체 초기화」·「전체 비우기」는 표 전체에 같은 동작을 합니다</li>
       <li><b>키보드</b>: Tab은 직접 입력 칸(출퇴근 시간, 비업무, 잔특근 신청) 사이만 이동합니다. Enter·↑·↓는 같은 열의 위아래 칸으로, 시간 칸에서 Alt+↓는 시·분·초 선택 창을 엽니다(←→ 칸 이동, ↑↓ 값 변경, Enter 닫기)</li>
     </ul>
     <p class="source">계산 규칙은 <code>근무시간_계산기_v3.0.xlsm</code>의 VBA 함수를 그대로 옮기고, 휴일·식사 차감·꿀근무·근무 가능 시간을 더했습니다. <span id="storageNote">입력값은 이 브라우저에만 저장됩니다.</span></p>
+    </div>
+    </details>
   </section>
 </div>
 
@@ -1563,6 +1608,7 @@ function updateChrome() {
   const dates = rowDates();
   for (const btn of viewButtons) btn.setAttribute('aria-pressed', String(btn.dataset.view === view));
   for (const btn of layoutButtons) btn.setAttribute('aria-pressed', String(btn.dataset.layout === layout));
+  for (const btn of themeButtons) btn.setAttribute('aria-pressed', String(btn.dataset.themeChoice === theme));
   bgSelect.value = bg;
   bgSelect.closest('.bg-picker').classList.toggle('off', bg === 'off');
   for (const btn of weekTabs) {
@@ -1943,6 +1989,36 @@ function setLayout(next) {
   updateChrome();
 }
 for (const btn of layoutButtons) btn.addEventListener('click', () => setLayout(btn.dataset.layout));
+
+// 밝기 전환: 자동(기기 설정) / 밝게 / 어둡게
+const themeButtons = [...document.querySelectorAll('#themeToggle [data-theme-choice]')];
+function setTheme(next) {
+  theme = next;
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch {
+    // 저장할 수 없으면 이번 화면에만 적용한다.
+  }
+  applyTheme();
+  updateChrome();
+}
+for (const btn of themeButtons) btn.addEventListener('click', () => setTheme(btn.dataset.themeChoice));
+
+// 입력 안내: 처음에는 접어 두고, 펼친 상태를 이 기기에 기억한다.
+const GUIDE_KEY = 'worktime-calculator-guide';
+const guideFold = $('guideFold');
+try {
+  guideFold.open = localStorage.getItem(GUIDE_KEY) === 'open';
+} catch {
+  // 기억할 수 없으면 접어 둔 채로 연다.
+}
+guideFold.addEventListener('toggle', () => {
+  try {
+    localStorage.setItem(GUIDE_KEY, guideFold.open ? 'open' : 'closed');
+  } catch {
+    // 저장할 수 없으면 이번 화면에만 적용한다.
+  }
+});
 
 // 배경 꾸미기 고르기
 const bgSelect = $('bgSelect');
